@@ -1,0 +1,585 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>Widget</class>
+ <widget class="QWidget" name="Widget">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>694</width>
+    <height>611</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Widget</string>
+  </property>
+  <widget class="QPushButton" name="saveButton">
+   <property name="geometry">
+    <rect>
+     <x>590</x>
+     <y>170</y>
+     <width>41</width>
+     <height>301</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>保存</string>
+   </property>
+  </widget>
+  <widget class="QPushButton" name="loadButton">
+   <property name="geometry">
+    <rect>
+     <x>380</x>
+     <y>50</y>
+     <width>131</width>
+     <height>31</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>加载/创建偏置文件</string>
+   </property>
+  </widget>
+  <widget class="QLabel" name="label">
+   <property name="geometry">
+    <rect>
+     <x>180</x>
+     <y>10</y>
+     <width>421</width>
+     <height>31</height>
+    </rect>
+   </property>
+   <property name="font">
+    <font>
+     <pointsize>20</pointsize>
+    </font>
+   </property>
+   <property name="lineWidth">
+    <number>3</number>
+   </property>
+   <property name="midLineWidth">
+    <number>3</number>
+   </property>
+   <property name="text">
+    <string>强化模式偏置参数调整</string>
+   </property>
+  </widget>
+  <widget class="QGroupBox" name="groupBox">
+   <property name="geometry">
+    <rect>
+     <x>80</x>
+     <y>200</y>
+     <width>471</width>
+     <height>141</height>
+    </rect>
+   </property>
+   <property name="title">
+    <string>走路</string>
+   </property>
+   <widget class="QLineEdit" name="x_lineEdit">
+    <property name="geometry">
+     <rect>
+      <x>140</x>
+      <y>20</y>
+      <width>81</width>
+      <height>31</height>
+     </rect>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="x_minus_pushButton">
+    <property name="geometry">
+     <rect>
+      <x>360</x>
+      <y>21</y>
+      <width>91</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>需向后调整</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="y_plus_pushButton">
+    <property name="geometry">
+     <rect>
+      <x>240</x>
+      <y>61</y>
+      <width>101</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>需向左调整</string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="y_label">
+    <property name="geometry">
+     <rect>
+      <x>20</x>
+      <y>61</y>
+      <width>111</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>y_vel_offset：</string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="yaw_label">
+    <property name="geometry">
+     <rect>
+      <x>20</x>
+      <y>101</y>
+      <width>111</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>yaw_vel_offset：</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="yaw_minus_pushButton">
+    <property name="geometry">
+     <rect>
+      <x>360</x>
+      <y>101</y>
+      <width>91</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>需向右旋转</string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="x_label">
+    <property name="geometry">
+     <rect>
+      <x>20</x>
+      <y>21</y>
+      <width>111</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>x_vel_offset：</string>
+    </property>
+   </widget>
+   <widget class="QLineEdit" name="yaw_lineEdit">
+    <property name="geometry">
+     <rect>
+      <x>140</x>
+      <y>101</y>
+      <width>81</width>
+      <height>31</height>
+     </rect>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="x_plus_pushButton">
+    <property name="geometry">
+     <rect>
+      <x>240</x>
+      <y>21</y>
+      <width>101</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>需向前调整</string>
+    </property>
+   </widget>
+   <widget class="QLineEdit" name="y_lineEdit">
+    <property name="geometry">
+     <rect>
+      <x>140</x>
+      <y>61</y>
+      <width>81</width>
+      <height>31</height>
+     </rect>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="y_minus_pushButton">
+    <property name="geometry">
+     <rect>
+      <x>360</x>
+      <y>61</y>
+      <width>91</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>需向右调整</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="yaw_plus_pushButton">
+    <property name="geometry">
+     <rect>
+      <x>240</x>
+      <y>101</y>
+      <width>101</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>需向左旋转</string>
+    </property>
+   </widget>
+  </widget>
+  <widget class="QGroupBox" name="groupBox_3">
+   <property name="geometry">
+    <rect>
+     <x>80</x>
+     <y>90</y>
+     <width>471</width>
+     <height>101</height>
+    </rect>
+   </property>
+   <property name="title">
+    <string>站立姿态</string>
+   </property>
+   <widget class="QPushButton" name="pitch_minus_pushButton">
+    <property name="geometry">
+     <rect>
+      <x>360</x>
+      <y>60</y>
+      <width>91</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>需向前倾斜</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="pitch_plus_pushButton">
+    <property name="geometry">
+     <rect>
+      <x>240</x>
+      <y>60</y>
+      <width>101</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>需向后倾斜</string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="pitch_label">
+    <property name="geometry">
+     <rect>
+      <x>20</x>
+      <y>59</y>
+      <width>111</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>xsense_data_pitch：</string>
+    </property>
+   </widget>
+   <widget class="QLineEdit" name="roll_lineEdit">
+    <property name="geometry">
+     <rect>
+      <x>140</x>
+      <y>20</y>
+      <width>81</width>
+      <height>31</height>
+     </rect>
+    </property>
+   </widget>
+   <widget class="QLabel" name="roll_label">
+    <property name="geometry">
+     <rect>
+      <x>20</x>
+      <y>19</y>
+      <width>111</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>xsense_data_roll：</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="roll_minus_pushButton">
+    <property name="geometry">
+     <rect>
+      <x>360</x>
+      <y>20</y>
+      <width>91</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>需向右倾斜</string>
+    </property>
+   </widget>
+   <widget class="QLineEdit" name="pitch_lineEdit">
+    <property name="geometry">
+     <rect>
+      <x>140</x>
+      <y>60</y>
+      <width>81</width>
+      <height>31</height>
+     </rect>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="roll_plus_pushButton">
+    <property name="geometry">
+     <rect>
+      <x>240</x>
+      <y>20</y>
+      <width>101</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>需向左倾斜</string>
+    </property>
+   </widget>
+  </widget>
+  <widget class="QGroupBox" name="groupBox_2">
+   <property name="geometry">
+    <rect>
+     <x>80</x>
+     <y>350</y>
+     <width>471</width>
+     <height>131</height>
+    </rect>
+   </property>
+   <property name="title">
+    <string>跑步</string>
+   </property>
+   <widget class="QLabel" name="x_run_label">
+    <property name="geometry">
+     <rect>
+      <x>20</x>
+      <y>10</y>
+      <width>111</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>x_vel_offset_run：</string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="y_run_label">
+    <property name="geometry">
+     <rect>
+      <x>20</x>
+      <y>50</y>
+      <width>111</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>y_vel_offset_run：</string>
+    </property>
+   </widget>
+   <widget class="QLineEdit" name="y_run_lineEdit">
+    <property name="geometry">
+     <rect>
+      <x>140</x>
+      <y>50</y>
+      <width>81</width>
+      <height>31</height>
+     </rect>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="yaw_run_plus_pushButton">
+    <property name="geometry">
+     <rect>
+      <x>240</x>
+      <y>90</y>
+      <width>101</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>需向左旋转</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="x_run_minus_pushButton">
+    <property name="geometry">
+     <rect>
+      <x>360</x>
+      <y>10</y>
+      <width>91</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>需向后调整</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="yaw_run_minus_pushButton">
+    <property name="geometry">
+     <rect>
+      <x>360</x>
+      <y>90</y>
+      <width>91</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>需向右旋转</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="y_run_minus_pushButton">
+    <property name="geometry">
+     <rect>
+      <x>360</x>
+      <y>50</y>
+      <width>91</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>需向右调整</string>
+    </property>
+   </widget>
+   <widget class="QLineEdit" name="x_run_lineEdit">
+    <property name="geometry">
+     <rect>
+      <x>140</x>
+      <y>10</y>
+      <width>81</width>
+      <height>31</height>
+     </rect>
+    </property>
+   </widget>
+   <widget class="QLineEdit" name="yaw_run_lineEdit">
+    <property name="geometry">
+     <rect>
+      <x>140</x>
+      <y>90</y>
+      <width>81</width>
+      <height>31</height>
+     </rect>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="y_run_plus_pushButton">
+    <property name="geometry">
+     <rect>
+      <x>240</x>
+      <y>50</y>
+      <width>101</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>需向左调整</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="x_run_plus_pushButton">
+    <property name="geometry">
+     <rect>
+      <x>240</x>
+      <y>10</y>
+      <width>101</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>需向前调整</string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="yaw_run_label">
+    <property name="geometry">
+     <rect>
+      <x>20</x>
+      <y>90</y>
+      <width>111</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>yaw_vel_offset_run：</string>
+    </property>
+   </widget>
+  </widget>
+  <widget class="QLabel" name="roll_label_2">
+   <property name="geometry">
+    <rect>
+     <x>150</x>
+     <y>50</y>
+     <width>51</width>
+     <height>31</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>X86IP：</string>
+   </property>
+  </widget>
+  <widget class="QLineEdit" name="ip_lineEdit">
+   <property name="geometry">
+    <rect>
+     <x>220</x>
+     <y>50</y>
+     <width>121</width>
+     <height>31</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>192.168.41.1</string>
+   </property>
+  </widget>
+  <widget class="QGroupBox" name="groupBox_4">
+   <property name="geometry">
+    <rect>
+     <x>80</x>
+     <y>490</y>
+     <width>471</width>
+     <height>71</height>
+    </rect>
+   </property>
+   <property name="title">
+    <string>限速</string>
+   </property>
+   <widget class="QLineEdit" name="limit_walk_lineEdit">
+    <property name="geometry">
+     <rect>
+      <x>130</x>
+      <y>20</y>
+      <width>91</width>
+      <height>31</height>
+     </rect>
+    </property>
+   </widget>
+   <widget class="QLabel" name="limit_walk_label">
+    <property name="geometry">
+     <rect>
+      <x>10</x>
+      <y>20</y>
+      <width>111</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>x_vel_limit_walk：</string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="limit_run_label">
+    <property name="geometry">
+     <rect>
+      <x>240</x>
+      <y>20</y>
+      <width>111</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>x_vel_limit_run：</string>
+    </property>
+   </widget>
+   <widget class="QLineEdit" name="limit_run_lineEdit">
+    <property name="geometry">
+     <rect>
+      <x>360</x>
+      <y>20</y>
+      <width>91</width>
+      <height>31</height>
+     </rect>
+    </property>
+   </widget>
+  </widget>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
