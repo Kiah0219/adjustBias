@@ -168,7 +168,9 @@ void Widget::on_loadButton_clicked()
                 QMessageBox::information(this, "信息已加载！", QString("连接到IP: %1").arg(host));
             }
             else if (result == 1) {
-                QMessageBox::warning(this, "加载失败！", "无法连接到指定IP或读取配置文件失败。");
+                // 尽可能显示更详细的错误信息，方便排查
+                QString detail = QString::fromStdString(lastErrorMessage.empty() ? "无法连接到指定IP或读取配置文件失败。" : lastErrorMessage);
+                QMessageBox::warning(this, "加载失败！", QString("无法连接到指定IP或读取配置文件失败。\n%1").arg(detail));
             }else {
                 QMessageBox::warning(this, "加载失败！", "SSH连接已断开！请重新加载。");
             }
@@ -199,20 +201,26 @@ int Widget::main_load() {
             loadConfigToUI();
             return 0;
         } else {
+            // 在无法读取配置但未抛出异常的情况下，设置通用错误信息
+            lastErrorMessage = "无法读取远程配置文件或配置文件校验失败";
             return 1;
         }
     } catch (const SSHException& e) {
-        QString msg = QString("SSH连接异常: %1").arg(e.what());
+        // 记录并保存详细错误信息，返回失败
+        lastErrorMessage = std::string("SSH连接异常: ") + e.what();
+        QString msg = QString::fromStdString(lastErrorMessage);
         logException("SSHException", msg, "main_load");
-        qDebug() << "SSH连接异常:" << e.what();
+        qDebug() << "SSH连接异常:" << msg;
         return 1;
     } catch (const std::exception& e) {
-        QString msg = QString("加载配置时发生异常: %1").arg(e.what());
+        lastErrorMessage = std::string("加载配置时发生异常: ") + e.what();
+        QString msg = QString::fromStdString(lastErrorMessage);
         logException("std::exception", msg, "main_load");
-        qDebug() << "加载配置时发生异常:" << e.what();
+        qDebug() << "加载配置时发生异常:" << msg;
         return 1;
     } catch (...) {
-        QString msg = "加载配置时发生未知异常";
+        lastErrorMessage = "加载配置时发生未知异常";
+        QString msg = QString::fromStdString(lastErrorMessage);
         logException("Unknown Exception", msg, "main_load");
         qDebug() << "加载配置时发生未知异常";
         return 1;

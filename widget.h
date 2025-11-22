@@ -63,6 +63,8 @@ private:
     const string configPath = "/home/ubuntu/data/param/rl_control_new.txt";
     std::unique_ptr<SSHManager> sshManager;
     std::unique_ptr<ConfigReader> configReader;
+    // 最近一次错误信息（用于向用户展示更详细的失败原因）
+    std::string lastErrorMessage;
 
 
     double q_xsense_data_roll = 0.0;

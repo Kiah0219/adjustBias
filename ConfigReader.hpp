@@ -77,26 +77,35 @@ public:
     string executeRemoteCommand(const string& command) {
         RemoteCommandExecutor executor(sshManager, command, false);
         executor.execute();
-        
-        libssh2_session_set_blocking(sshManager->getSession(), 0);
-        char buffer[256];
+
+        // 为了可靠读取完整输出，使用阻塞模式并读取直到通道 EOF
+        libssh2_session_set_blocking(sshManager->getSession(), 1);
+        char buffer[1024];
         string result;
-        int bytesRead;
-        auto startTime = chrono::steady_clock::now();
-        
-        while (chrono::steady_clock::now() - startTime < chrono::seconds(5)) {
-            bytesRead = libssh2_channel_read(executor.getChannel(), buffer, sizeof(buffer));
+
+        while (true) {
+            int bytesRead = libssh2_channel_read(executor.getChannel(), buffer, sizeof(buffer));
             if (bytesRead > 0) {
                 result.append(buffer, bytesRead);
+                continue;
             } else if (bytesRead == 0) {
+                // 如果通道已经到 EOF，读取完成
                 if (libssh2_channel_eof(executor.getChannel())) {
                     break;
                 }
+                // 否则短暂等待再读
+                this_thread::sleep_for(chrono::milliseconds(50));
+                continue;
             } else if (bytesRead == LIBSSH2_ERROR_EAGAIN) {
-                this_thread::sleep_for(chrono::milliseconds(100));
+                // 非阻塞提示（理论上不会出现，因为已设置阻塞），短等重试
+                this_thread::sleep_for(chrono::milliseconds(50));
+                continue;
+            } else {
+                // 出现错误，返回当前已读内容（并由调用方判断是否为空）
+                break;
             }
         }
-        
+
         return result;
     }
     
