@@ -22,6 +22,9 @@ class Widget : public QWidget
 public:
     Widget(QWidget *parent = nullptr);
     ~Widget();
+    
+    // 静态方法用于记录异常日志
+    static void logException(const QString& exceptionType, const QString& exceptionMsg, const QString& context = "");
 
 private slots:
     void on_saveButton_clicked();

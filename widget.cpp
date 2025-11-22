@@ -4,9 +4,47 @@
 #include <QRegularExpression>
 #include <QProgressDialog>
 #include <QTimer>
-
+#include <QDateTime>
+#include <QDir>
+#include <QTextStream>
+#include <QFile>
 #include <iostream>
 
+
+// 添加静态方法用于记录异常日志
+void Widget::logException(const QString& exceptionType, const QString& exceptionMsg, const QString& context) {
+    try {
+        // 确保log文件夹存在
+        QDir().mkpath("logs");
+        
+        // 获取当前日期和时间
+        QDateTime now = QDateTime::currentDateTime();
+        QString fileName = QString("logs/exception_%1.log")
+                        .arg(now.toString("yyyyMMdd_HHmmss_zzz"));
+        
+        // 写入异常日志
+        QFile logFile(fileName);
+        if (logFile.open(QIODevice::WriteOnly | QIODevice::Append)) {
+            QTextStream stream(&logFile);
+            #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+                stream.setEncoding(QStringConverter::Utf8);
+            #else
+                stream.setCodec("UTF-8");
+            #endif
+            stream << "Time: " << now.toString("yyyy-MM-dd hh:mm:ss.zzz") << Qt::endl;
+            stream << "Exception Type: " << exceptionType << Qt::endl;
+            if (!context.isEmpty()) {
+                stream << "Context: " << context << Qt::endl;
+            }
+            stream << "Exception Message: " << exceptionMsg << Qt::endl;
+            stream << "----------------------------------------" << Qt::endl;
+            logFile.close();
+        }
+    } catch (...) {
+        // 日志记录失败时不抛出异常，避免掩盖原始异常
+        std::cout << "无法写入异常日志" << std::endl;
+    }
+}
 
 Widget::Widget(QWidget *parent)
     : QWidget(parent)
@@ -25,8 +63,24 @@ Widget::~Widget()
 
 
 void Widget::on_saveButton_clicked() {
-
     try{
+        // 添加前置检查，避免在资源未初始化时执行
+        if (!sshManager || !configReader) {
+            QMessageBox::warning(this, "错误", "系统未初始化，请先点击加载按钮！");
+            return;
+        }
+        
+        // 检查SSH连接状态
+        if (sshManager->isSSHDisconnected()) {
+            QMessageBox::warning(this, "错误", "SSH连接已断开，请重新连接！");
+            return;
+        }
+        
+        // 额外检查：确保SSH会话仍然有效
+        if (!sshManager->getSession()) {
+            QMessageBox::warning(this, "错误", "SSH会话无效，请重新连接！");
+            return;
+        }
         QProgressDialog progressDialog("正在保存配置...", "", 0, 0, this);
         progressDialog.setWindowTitle("保存配置");
         progressDialog.setCancelButton(nullptr); // 移除取消按钮
@@ -148,8 +202,19 @@ int Widget::main_load() {
             return 1;
         }
     } catch (const SSHException& e) {
+        QString msg = QString("SSH连接异常: %1").arg(e.what());
+        logException("SSHException", msg, "main_load");
+        qDebug() << "SSH连接异常:" << e.what();
         return 1;
     } catch (const std::exception& e) {
+        QString msg = QString("加载配置时发生异常: %1").arg(e.what());
+        logException("std::exception", msg, "main_load");
+        qDebug() << "加载配置时发生异常:" << e.what();
+        return 1;
+    } catch (...) {
+        QString msg = "加载配置时发生未知异常";
+        logException("Unknown Exception", msg, "main_load");
+        qDebug() << "加载配置时发生未知异常";
         return 1;
     }
 }
@@ -157,37 +222,77 @@ int Widget::main_load() {
 
 
 int Widget::main_save(){
-
+    // 检查资源是否初始化
     if (sshManager == nullptr || configReader == nullptr) {
-    return 1; // SSHManager 或 ConfigReader 未初始化
+        qDebug() << "错误: SSHManager 或 ConfigReader 未初始化";
+        return 1; // SSHManager 或 ConfigReader 未初始化
     }
+    
+    // 检查SSH连接状态
     if(sshManager->isSSHDisconnected()) {
+        qDebug() << "错误: SSH连接已断开";
+        return 2; // SSH 连接无效
+    }
+    
+    // 额外检查：确保SSH会话仍然有效
+    if (!sshManager->getSession()) {
+        qDebug() << "错误: 无法获取有效的SSH会话";
         return 2; // SSH 连接无效
     }
 
-
-
-        // 获取当前 UI 上的值并更新到成员变量
-    if(q_xsense_data_roll != ui->roll_lineEdit->text().toDouble()) 
-        q_xsense_data_roll = ui->roll_lineEdit->text().toDouble();
-    if(q_xsense_data_pitch != ui->pitch_lineEdit->text().toDouble()) 
-        q_xsense_data_pitch = ui->pitch_lineEdit->text().toDouble();
-    if(q_x_vel_offset != ui->x_lineEdit->text().toDouble()) 
-        q_x_vel_offset = ui->x_lineEdit->text().toDouble();
-    if(q_y_vel_offset != ui->y_lineEdit->text().toDouble()) 
-        q_y_vel_offset = ui->y_lineEdit->text().toDouble();
-    if(q_yaw_vel_offset != ui->yaw_lineEdit->text().toDouble()) 
-        q_yaw_vel_offset = ui->yaw_lineEdit->text().toDouble();
-    if(q_x_vel_offset_run != ui->x_run_lineEdit->text().toDouble()) 
-        q_x_vel_offset_run = ui->x_run_lineEdit->text().toDouble();
-    if(q_y_vel_offset_run != ui->y_run_lineEdit->text().toDouble()) 
-        q_y_vel_offset_run = ui->y_run_lineEdit->text().toDouble();
-    if(q_yaw_vel_offset_run != ui->yaw_run_lineEdit->text().toDouble()) 
-        q_yaw_vel_offset_run = ui->yaw_run_lineEdit->text().toDouble();
-    if(ui->limit_walk_lineEdit->text() != QString("nan") && q_x_vel_limit_walk != ui->limit_walk_lineEdit->text().toDouble())
-        q_x_vel_limit_walk = ui->limit_walk_lineEdit->text().toDouble();
-    if(ui->limit_run_lineEdit->text() != QString("nan") &&q_x_vel_limit_run != ui->limit_run_lineEdit->text().toDouble()) 
-        q_x_vel_limit_run = ui->limit_run_lineEdit->text().toDouble();
+    try {
+        // 获取当前 UI 上的值并更新到成员变量，添加异常处理
+        bool ok;
+        double rollValue = ui->roll_lineEdit->text().toDouble(&ok);
+        if (ok && q_xsense_data_roll != rollValue) 
+            q_xsense_data_roll = rollValue;
+            
+        double pitchValue = ui->pitch_lineEdit->text().toDouble(&ok);
+        if (ok && q_xsense_data_pitch != pitchValue) 
+            q_xsense_data_pitch = pitchValue;
+            
+        double xValue = ui->x_lineEdit->text().toDouble(&ok);
+        if (ok && q_x_vel_offset != xValue) 
+            q_x_vel_offset = xValue;
+            
+        double yValue = ui->y_lineEdit->text().toDouble(&ok);
+        if (ok && q_y_vel_offset != yValue) 
+            q_y_vel_offset = yValue;
+            
+        double yawValue = ui->yaw_lineEdit->text().toDouble(&ok);
+        if (ok && q_yaw_vel_offset != yawValue) 
+            q_yaw_vel_offset = yawValue;
+            
+        double xRunValue = ui->x_run_lineEdit->text().toDouble(&ok);
+        if (ok && q_x_vel_offset_run != xRunValue) 
+            q_x_vel_offset_run = xRunValue;
+            
+        double yRunValue = ui->y_run_lineEdit->text().toDouble(&ok);
+        if (ok && q_y_vel_offset_run != yRunValue) 
+            q_y_vel_offset_run = yRunValue;
+            
+        double yawRunValue = ui->yaw_run_lineEdit->text().toDouble(&ok);
+        if (ok && q_yaw_vel_offset_run != yawRunValue) 
+            q_yaw_vel_offset_run = yawRunValue;
+            
+        // 处理特殊的 nan 值
+        if(ui->limit_walk_lineEdit->text() != QString("nan")) {
+            double limitWalkValue = ui->limit_walk_lineEdit->text().toDouble(&ok);
+            if (ok && q_x_vel_limit_walk != limitWalkValue) 
+                q_x_vel_limit_walk = limitWalkValue;
+        }
+        
+        if(ui->limit_run_lineEdit->text() != QString("nan")) {
+            double limitRunValue = ui->limit_run_lineEdit->text().toDouble(&ok);
+            if (ok && q_x_vel_limit_run != limitRunValue) 
+                q_x_vel_limit_run = limitRunValue;
+        }
+    } catch (const std::exception& e) {
+        QString msg = QString("解析UI数值时发生异常: %1").arg(e.what());
+        logException("std::exception", msg, "main_save");
+        qDebug() << "解析UI数值时发生异常:" << e.what();
+        return 3; // 数值解析错误
+    }
 
     // 更新 ConfigReader 中的值, 如果有变化则更新写入文件
     if(q_xsense_data_roll != configReader->xsense_data_roll) {
@@ -256,10 +361,10 @@ void Widget::loadConfigToUI() {
     ui->pitch_lineEdit->setText(QString::number(q_xsense_data_pitch));
     ui->x_lineEdit->setText(QString::number(q_x_vel_offset));
     ui->y_lineEdit->setText(QString::number(q_y_vel_offset));
-    ui->yaw_lineEdit->setText(QString::number(q_yaw_vel_offset));
+    ui->yaw_lineEdit->setText(QString::number(q_yaw_vel_offset, 'f', 4));
     ui->x_run_lineEdit->setText(QString::number(q_x_vel_offset_run));
     ui->y_run_lineEdit->setText(QString::number(q_y_vel_offset_run));
-    ui->yaw_run_lineEdit->setText(QString::number(q_yaw_vel_offset_run));
+    ui->yaw_run_lineEdit->setText(QString::number(q_yaw_vel_offset_run, 'f', 4));
     ui->limit_walk_lineEdit->setText(QString::number(q_x_vel_limit_walk));
     ui->limit_run_lineEdit->setText(QString::number(q_x_vel_limit_run));
 
@@ -270,161 +375,348 @@ void Widget::loadConfigToUI() {
 
 void Widget::on_roll_plus_pushButton_clicked()
 {
-    // 获取当前值
-    double currentValue = ui->roll_lineEdit->text().toDouble();
-    // 增加 0.001
-    currentValue += 0.001;
-    q_xsense_data_roll = currentValue;
-    // 更新回控件
-    ui->roll_lineEdit->setText(QString::number(currentValue, 'f', 3));
+    try {
+        // 获取当前值
+        bool ok;
+        double currentValue = ui->roll_lineEdit->text().toDouble(&ok);
+        if (!ok) {
+            QMessageBox::warning(this, "错误", "无效的数值，请检查输入！");
+            return;
+        }
+        // 增加 0.001
+        currentValue += 0.001;
+        q_xsense_data_roll = currentValue;
+        // 更新回控件
+        ui->roll_lineEdit->setText(QString::number(currentValue, 'f', 3));
+    } catch (const std::exception& e) {
+        QString msg = QString("操作失败: %1").arg(e.what());
+        logException("std::exception", msg, "on_roll_plus_pushButton_clicked");
+        QMessageBox::warning(this, "错误", msg);
+    }
 }
+
 void Widget::on_roll_minus_pushButton_clicked()
 {
-    // 获取当前值
-    double currentValue = ui->roll_lineEdit->text().toDouble();
-    // 减少 0.001
-    currentValue -= 0.001;
-    q_xsense_data_roll = currentValue;
-    // 更新回控件
-    ui->roll_lineEdit->setText(QString::number(currentValue, 'f', 3));
+    try {
+        // 获取当前值
+        bool ok;
+        double currentValue = ui->roll_lineEdit->text().toDouble(&ok);
+        if (!ok) {
+            QMessageBox::warning(this, "错误", "无效的数值，请检查输入！");
+            return;
+        }
+        // 减少 0.001
+        currentValue -= 0.001;
+        q_xsense_data_roll = currentValue;
+        // 更新回控件
+        ui->roll_lineEdit->setText(QString::number(currentValue, 'f', 3));
+    } catch (const std::exception& e) {
+        QString msg = QString("操作失败: %1").arg(e.what());
+        logException("std::exception", msg, "on_roll_plus_pushButton_clicked");
+        QMessageBox::warning(this, "错误", msg);
+    }
 }   
 void Widget::on_pitch_plus_pushButton_clicked()
 {
-    // 获取当前值
-    double currentValue = ui->pitch_lineEdit->text().toDouble();
-    // 增加 0.001
-    currentValue += 0.001;
-    q_xsense_data_pitch = currentValue;
-    // 更新回控件
-    ui->pitch_lineEdit->setText(QString::number(currentValue, 'f', 3));
+    try {
+        // 获取当前值
+        bool ok;
+        double currentValue = ui->pitch_lineEdit->text().toDouble(&ok);
+        if (!ok) {
+            QMessageBox::warning(this, "错误", "无效的数值，请检查输入！");
+            return;
+        }
+        // 增加 0.001
+        currentValue += 0.001;
+        q_xsense_data_pitch = currentValue;
+        // 更新回控件
+        ui->pitch_lineEdit->setText(QString::number(currentValue, 'f', 3));
+    } catch (const std::exception& e) {
+        QString msg = QString("操作失败: %1").arg(e.what());
+        logException("std::exception", msg, "on_roll_plus_pushButton_clicked");
+        QMessageBox::warning(this, "错误", msg);
+    }
 }
+
 void Widget::on_pitch_minus_pushButton_clicked()
 {
-    // 获取当前值
-    double currentValue = ui->pitch_lineEdit->text().toDouble();
-    // 减少 0.001
-    currentValue -= 0.001;
-    q_xsense_data_pitch = currentValue;
-    // 更新回控件
-    ui->pitch_lineEdit->setText(QString::number(currentValue, 'f', 3));
+    try {
+        // 获取当前值
+        bool ok;
+        double currentValue = ui->pitch_lineEdit->text().toDouble(&ok);
+        if (!ok) {
+            QMessageBox::warning(this, "错误", "无效的数值，请检查输入！");
+            return;
+        }
+        // 减少 0.001
+        currentValue -= 0.001;
+        q_xsense_data_pitch = currentValue;
+        // 更新回控件
+        ui->pitch_lineEdit->setText(QString::number(currentValue, 'f', 3));
+    } catch (const std::exception& e) {
+        QString msg = QString("操作失败: %1").arg(e.what());
+        logException("std::exception", msg, "on_roll_plus_pushButton_clicked");
+        QMessageBox::warning(this, "错误", msg);
+    }
 }
+
 void Widget::on_x_plus_pushButton_clicked()
 {
-    // 获取当前值
-    double currentValue = ui->x_lineEdit->text().toDouble();
-    // 增加 0.001
-    currentValue += 0.01;
-    q_x_vel_offset = currentValue;
-    // 更新回控件
-    ui->x_lineEdit->setText(QString::number(currentValue, 'f', 3));
+    try {
+        // 获取当前值
+        bool ok;
+        double currentValue = ui->x_lineEdit->text().toDouble(&ok);
+        if (!ok) {
+            QMessageBox::warning(this, "错误", "无效的数值，请检查输入！");
+            return;
+        }
+        // 增加 0.01
+        currentValue += 0.01;
+        q_x_vel_offset = currentValue;
+        // 更新回控件
+        ui->x_lineEdit->setText(QString::number(currentValue, 'f', 3));
+    } catch (const std::exception& e) {
+        QString msg = QString("操作失败: %1").arg(e.what());
+        logException("std::exception", msg, "on_roll_plus_pushButton_clicked");
+        QMessageBox::warning(this, "错误", msg);
+    }
 }
+
 void Widget::on_x_minus_pushButton_clicked()
 {
-    // 获取当前值
-    double currentValue = ui->x_lineEdit->text().toDouble();
-    // 减少 0.001
-    currentValue -= 0.01;
-    q_x_vel_offset = currentValue;
-    // 更新回控件
-    ui->x_lineEdit->setText(QString::number(currentValue, 'f', 3));
+    try {
+        // 获取当前值
+        bool ok;
+        double currentValue = ui->x_lineEdit->text().toDouble(&ok);
+        if (!ok) {
+            QMessageBox::warning(this, "错误", "无效的数值，请检查输入！");
+            return;
+        }
+        // 减少 0.01
+        currentValue -= 0.01;
+        q_x_vel_offset = currentValue;
+        // 更新回控件
+        ui->x_lineEdit->setText(QString::number(currentValue, 'f', 3));
+    } catch (const std::exception& e) {
+        QString msg = QString("操作失败: %1").arg(e.what());
+        logException("std::exception", msg, "on_roll_plus_pushButton_clicked");
+        QMessageBox::warning(this, "错误", msg);
+    }
 }
 void Widget::on_y_plus_pushButton_clicked()
 {
-    // 获取当前值
-    double currentValue = ui->y_lineEdit->text().toDouble();
-    // 增加 0.001
-    currentValue += 0.01;
-    q_y_vel_offset = currentValue;
-    // 更新回控件
-    ui->y_lineEdit->setText(QString::number(currentValue, 'f', 3));
+    try {
+        // 获取当前值
+        bool ok;
+        double currentValue = ui->y_lineEdit->text().toDouble(&ok);
+        if (!ok) {
+            QMessageBox::warning(this, "错误", "无效的数值，请检查输入！");
+            return;
+        }
+        // 增加 0.01
+        currentValue += 0.01;
+        q_y_vel_offset = currentValue;
+        // 更新回控件
+        ui->y_lineEdit->setText(QString::number(currentValue, 'f', 3));
+    } catch (const std::exception& e) {
+        QString msg = QString("操作失败: %1").arg(e.what());
+        logException("std::exception", msg, "on_roll_plus_pushButton_clicked");
+        QMessageBox::warning(this, "错误", msg);
+    }
 }
+
 void Widget::on_y_minus_pushButton_clicked()
 {
-    // 获取当前值
-    double currentValue = ui->y_lineEdit->text().toDouble();
-    // 减少 0.001
-    currentValue -= 0.01;
-    q_y_vel_offset = currentValue;
-    // 更新回控件
-    ui->y_lineEdit->setText(QString::number(currentValue, 'f', 3));
+    try {
+        // 获取当前值
+        bool ok;
+        double currentValue = ui->y_lineEdit->text().toDouble(&ok);
+        if (!ok) {
+            QMessageBox::warning(this, "错误", "无效的数值，请检查输入！");
+            return;
+        }
+        // 减少 0.01
+        currentValue -= 0.01;
+        q_y_vel_offset = currentValue;
+        // 更新回控件
+        ui->y_lineEdit->setText(QString::number(currentValue, 'f', 3));
+    } catch (const std::exception& e) {
+        QString msg = QString("操作失败: %1").arg(e.what());
+        logException("std::exception", msg, "on_roll_plus_pushButton_clicked");
+        QMessageBox::warning(this, "错误", msg);
+    }
 }
+
 void Widget::on_yaw_plus_pushButton_clicked()
 {
-    // 获取当前值
-    double currentValue = ui->yaw_lineEdit->text().toDouble();
-    // 增加 0.001
-    currentValue += 0.01;
-    q_yaw_vel_offset = currentValue;
-    // 更新回控件
-    ui->yaw_lineEdit->setText(QString::number(currentValue, 'f', 3));
+    try {
+        // 获取当前值
+        bool ok;
+        double currentValue = ui->yaw_lineEdit->text().toDouble(&ok);
+        if (!ok) {
+            QMessageBox::warning(this, "错误", "无效的数值，请检查输入！");
+            return;
+        }
+        // 增加 0.001
+        currentValue += 0.001;
+        q_yaw_vel_offset = currentValue;
+        // 更新回控件
+        ui->yaw_lineEdit->setText(QString::number(currentValue, 'f', 4));
+    } catch (const std::exception& e) {
+        QString msg = QString("操作失败: %1").arg(e.what());
+        logException("std::exception", msg, "on_roll_plus_pushButton_clicked");
+        QMessageBox::warning(this, "错误", msg);
+    }
 }
+
 void Widget::on_yaw_minus_pushButton_clicked()
 {
-    // 获取当前值
-    double currentValue = ui->yaw_lineEdit->text().toDouble();
-    // 减少 0.001
-    currentValue -= 0.01;
-    q_yaw_vel_offset = currentValue;
-    // 更新回控件
-    ui->yaw_lineEdit->setText(QString::number(currentValue, 'f', 3));
+    try {
+        // 获取当前值
+        bool ok;
+        double currentValue = ui->yaw_lineEdit->text().toDouble(&ok);
+        if (!ok) {
+            QMessageBox::warning(this, "错误", "无效的数值，请检查输入！");
+            return;
+        }
+        // 减少 0.001
+        currentValue -= 0.001;
+        q_yaw_vel_offset = currentValue;
+        // 更新回控件
+        ui->yaw_lineEdit->setText(QString::number(currentValue, 'f', 4));
+    } catch (const std::exception& e) {
+        QString msg = QString("操作失败: %1").arg(e.what());
+        logException("std::exception", msg, "on_roll_plus_pushButton_clicked");
+        QMessageBox::warning(this, "错误", msg);
+    }
 }
 void Widget::on_x_run_plus_pushButton_clicked()
 {
-    // 获取当前值
-    double currentValue = ui->x_run_lineEdit->text().toDouble();
-    // 增加 0.001
-    currentValue += 0.01;
-    q_x_vel_offset_run = currentValue;
-    // 更新回控件
-    ui->x_run_lineEdit->setText(QString::number(currentValue, 'f', 3));
+    try {
+        // 获取当前值
+        bool ok;
+        double currentValue = ui->x_run_lineEdit->text().toDouble(&ok);
+        if (!ok) {
+            QMessageBox::warning(this, "错误", "无效的数值，请检查输入！");
+            return;
+        }
+        // 增加 0.01
+        currentValue += 0.01;
+        q_x_vel_offset_run = currentValue;
+        // 更新回控件
+        ui->x_run_lineEdit->setText(QString::number(currentValue, 'f', 3));
+    } catch (const std::exception& e) {
+        QString msg = QString("操作失败: %1").arg(e.what());
+        logException("std::exception", msg, "on_roll_plus_pushButton_clicked");
+        QMessageBox::warning(this, "错误", msg);
+    }
 }
+
 void Widget::on_x_run_minus_pushButton_clicked()
 {
-    // 获取当前值
-    double currentValue = ui->x_run_lineEdit->text().toDouble();
-    // 减少 0.001
-    currentValue -= 0.01;
-    q_x_vel_offset_run = currentValue;
-    // 更新回控件
-    ui->x_run_lineEdit->setText(QString::number(currentValue, 'f', 3));
+    try {
+        // 获取当前值
+        bool ok;
+        double currentValue = ui->x_run_lineEdit->text().toDouble(&ok);
+        if (!ok) {
+            QMessageBox::warning(this, "错误", "无效的数值，请检查输入！");
+            return;
+        }
+        // 减少 0.01
+        currentValue -= 0.01;
+        q_x_vel_offset_run = currentValue;
+        // 更新回控件
+        ui->x_run_lineEdit->setText(QString::number(currentValue, 'f', 3));
+    } catch (const std::exception& e) {
+        QString msg = QString("操作失败: %1").arg(e.what());
+        logException("std::exception", msg, "on_roll_plus_pushButton_clicked");
+        QMessageBox::warning(this, "错误", msg);
+    }
 }
+
 void Widget::on_y_run_plus_pushButton_clicked()
 {
-    // 获取当前值
-    double currentValue = ui->y_run_lineEdit->text().toDouble();
-    // 增加 0.001
-    currentValue += 0.01;
-    q_y_vel_offset_run = currentValue;
-    // 更新回控件
-    ui->y_run_lineEdit->setText(QString::number(currentValue, 'f', 3));
+    try {
+        // 获取当前值
+        bool ok;
+        double currentValue = ui->y_run_lineEdit->text().toDouble(&ok);
+        if (!ok) {
+            QMessageBox::warning(this, "错误", "无效的数值，请检查输入！");
+            return;
+        }
+        // 增加 0.01
+        currentValue += 0.01;
+        q_y_vel_offset_run = currentValue;
+        // 更新回控件
+        ui->y_run_lineEdit->setText(QString::number(currentValue, 'f', 3));
+    } catch (const std::exception& e) {
+        QString msg = QString("操作失败: %1").arg(e.what());
+        logException("std::exception", msg, "on_roll_plus_pushButton_clicked");
+        QMessageBox::warning(this, "错误", msg);
+    }
 }
+
 void Widget::on_y_run_minus_pushButton_clicked()
 {
-    // 获取当前值
-    double currentValue = ui->y_run_lineEdit->text().toDouble();
-    // 减少 0.001
-    currentValue -= 0.01;
-    q_y_vel_offset_run = currentValue;
-    // 更新回控件
-    ui->y_run_lineEdit->setText(QString::number(currentValue, 'f', 3));
+    try {
+        // 获取当前值
+        bool ok;
+        double currentValue = ui->y_run_lineEdit->text().toDouble(&ok);
+        if (!ok) {
+            QMessageBox::warning(this, "错误", "无效的数值，请检查输入！");
+            return;
+        }
+        // 减少 0.01
+        currentValue -= 0.01;
+        q_y_vel_offset_run = currentValue;
+        // 更新回控件
+        ui->y_run_lineEdit->setText(QString::number(currentValue, 'f', 3));
+    } catch (const std::exception& e) {
+        QString msg = QString("操作失败: %1").arg(e.what());
+        logException("std::exception", msg, "on_roll_plus_pushButton_clicked");
+        QMessageBox::warning(this, "错误", msg);
+    }
 }
 void Widget::on_yaw_run_plus_pushButton_clicked()
 {
-    // 获取当前值
-    double currentValue = ui->yaw_run_lineEdit->text().toDouble();
-    // 增加 0.001
-    currentValue += 0.01;
-    q_yaw_vel_offset_run = currentValue;
-    // 更新回控件
-    ui->yaw_run_lineEdit->setText(QString::number(currentValue, 'f', 3));
+    try {
+        // 获取当前值
+        bool ok;
+        double currentValue = ui->yaw_run_lineEdit->text().toDouble(&ok);
+        if (!ok) {
+            QMessageBox::warning(this, "错误", "无效的数值，请检查输入！");
+            return;
+        }
+        // 增加 0.001
+        currentValue += 0.001;
+        q_yaw_vel_offset_run = currentValue;
+        // 更新回控件
+        ui->yaw_run_lineEdit->setText(QString::number(currentValue, 'f', 4));
+    } catch (const std::exception& e) {
+        QString msg = QString("操作失败: %1").arg(e.what());
+        logException("std::exception", msg, "on_roll_plus_pushButton_clicked");
+        QMessageBox::warning(this, "错误", msg);
+    }
 }
+
 void Widget::on_yaw_run_minus_pushButton_clicked()
 {
-    // 获取当前值
-    double currentValue = ui->yaw_run_lineEdit->text().toDouble();
-    // 减少 0.001
-    currentValue -= 0.01;
-    q_yaw_vel_offset_run = currentValue;
-    // 更新回控件
-    ui->yaw_run_lineEdit->setText(QString::number(currentValue, 'f', 3));
+    try {
+        // 获取当前值
+        bool ok;
+        double currentValue = ui->yaw_run_lineEdit->text().toDouble(&ok);
+        if (!ok) {
+            QMessageBox::warning(this, "错误", "无效的数值，请检查输入！");
+            return;
+        }
+        // 减少 0.001
+        currentValue -= 0.001;
+        q_yaw_vel_offset_run = currentValue;
+        // 更新回控件
+        ui->yaw_run_lineEdit->setText(QString::number(currentValue, 'f', 4));
+    } catch (const std::exception& e) {
+        QString msg = QString("操作失败: %1").arg(e.what());
+        logException("std::exception", msg, "on_roll_plus_pushButton_clicked");
+        QMessageBox::warning(this, "错误", msg);
+    }
 }

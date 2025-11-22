@@ -41,7 +41,18 @@ public:
     LIBSSH2_CHANNEL* getChannel() { return channel; }
 
     RemoteCommandExecutor(SSHManager* sshManager, const string& command, bool usePTY = true)
-        : session(sshManager->getSession()), command(command), usePTY(usePTY), sshManager(sshManager) {
+        : command(command), usePTY(usePTY), sshManager(sshManager) {
+        
+        // 检查SSH管理器是否有效
+        if (!sshManager) {
+            throw SSHException("SSH管理器为空，无法执行远程命令");
+        }
+        
+        // 获取会话，如果无效会自动重连
+        session = sshManager->getSession();
+        if (!session) {
+            throw SSHException("无法获取有效的SSH会话");
+        }
         
         // 打开执行通道
         channel = libssh2_channel_open_session(session);
@@ -60,12 +71,25 @@ public:
 
     // 执行命令
     void execute() {
-        // 执行命令
-        if (libssh2_channel_exec(channel, command.c_str())) {
-            string error = "Command execution failed: ";
-            char* errmsg;
-            libssh2_session_last_error(session, &errmsg, nullptr, 0);
-            throw SSHException(error + errmsg);
+        try {
+            // 检查通道是否有效
+            if (!channel) {
+                throw SSHException("SSH通道无效，无法执行命令");
+            }
+            
+            // 执行命令
+            if (libssh2_channel_exec(channel, command.c_str())) {
+                string error = "Command execution failed: ";
+                char* errmsg;
+                libssh2_session_last_error(session, &errmsg, nullptr, 0);
+                throw SSHException(error + errmsg);
+            }
+        } catch (const SSHException&) {
+            throw; // 重新抛出SSH异常
+        } catch (const exception& e) {
+            throw SSHException(string("执行命令时发生异常: ") + e.what());
+        } catch (...) {
+            throw SSHException("执行命令时发生未知异常");
         }
     }
 
@@ -148,13 +172,18 @@ public:
     }
 
     ~RemoteCommandExecutor() {
-        if (channel) {
-            // 确保通道完全关闭
-            if (!libssh2_channel_eof(channel)) {
-                libssh2_channel_send_eof(channel);
+        try {
+            if (channel) {
+                // 确保通道完全关闭
+                if (!libssh2_channel_eof(channel)) {
+                    libssh2_channel_send_eof(channel);
+                }
+                libssh2_channel_close(channel);
+                libssh2_channel_free(channel);
+                channel = nullptr;
             }
-            libssh2_channel_close(channel);
-            libssh2_channel_free(channel);
+        } catch (...) {
+            // 析构函数不应抛出异常，忽略所有异常
         }
     }
 };

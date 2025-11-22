@@ -103,6 +103,12 @@ public:
     // 创建默认配置文件
     bool createDefaultConfig() {
         try {
+            // 检查sshManager是否有效
+            if (!sshManager) {
+                cerr << "错误: SSH管理器未初始化，无法创建默认配置文件" << endl;
+                return false;
+            }
+            
             qDebug() << "正在创建默认配置文件: " << configPath;
             
             // 创建目录（如果不存在）
@@ -144,8 +150,14 @@ public:
                 return false;
             }
             
+        } catch (const SSHException& e) {
+            cerr << "SSH异常: 创建配置文件时发生错误: " << e.what() << endl;
+            return false;
         } catch (const exception& e) {
             cerr << "创建配置文件时发生错误: " << e.what() << endl;
+            return false;
+        } catch (...) {
+            cerr << "未知异常: 创建配置文件时发生错误" << endl;
             return false;
         }
     }
@@ -217,6 +229,11 @@ public:
     // 检查并补充缺失的参数
     bool completeMissingParameters() {
         try {
+            // 检查sshManager是否有效
+            if (!sshManager) {
+                cerr << "错误: SSH管理器未初始化，无法补充缺失参数" << endl;
+                return false;
+            }
             vector<string> missingParams;
             // 跳过 x_vel_limit_walk 和 x_vel_limit_run
             for (const auto& param : expectedParams) {
@@ -268,8 +285,14 @@ public:
             qDebug() << "已成功补充 " << missingParams.size() << " 个缺失参数到配置文件。";
             return true;
             
+        } catch (const SSHException& e) {
+            cerr << "SSH异常: 补充缺失参数失败: " << e.what() << endl;
+            return false;
         } catch (const exception& e) {
             cerr << "补充缺失参数失败: " << e.what() << endl;
+            return false;
+        } catch (...) {
+            cerr << "未知异常: 补充缺失参数失败" << endl;
             return false;
         }
     }
@@ -277,6 +300,24 @@ public:
     // 写入参数值到配置文件（更新或添加）
     bool writeParameterToFile(const string& paramName, double value) {
         try {
+            // 检查参数名是否有效
+            if (paramName.empty()) {
+                cerr << "错误: 参数名不能为空" << endl;
+                return false;
+            }
+            
+            // 检查sshManager是否有效
+            if (!sshManager) {
+                cerr << "错误: SSH管理器未初始化" << endl;
+                return false;
+            }
+            
+            // 检查SSH连接状态
+            if (sshManager->isSSHDisconnected()) {
+                cerr << "错误: SSH连接已断开，无法写入配置文件" << endl;
+                return false;
+            }
+            
             // 读取当前配置文件内容
             string readCommand = "cat " + configPath;
             string fileContent = executeRemoteCommand(readCommand);
@@ -336,8 +377,14 @@ public:
             qDebug() << "参数 " << paramName << " 已成功写入配置文件: " << value;
             return true;
             
+        } catch (const SSHException& e) {
+            cerr << "SSH异常: 写入参数到文件失败: " << paramName << " - " << e.what() << endl;
+            return false;
         } catch (const exception& e) {
             cerr << "写入参数到文件失败: " << paramName << " - " << e.what() << endl;
+            return false;
+        } catch (...) {
+            cerr << "未知异常: 写入参数到文件失败: " << paramName << endl;
             return false;
         }
     }
@@ -349,6 +396,18 @@ public:
     // 加载配置文件 - 如果不存在则创建，存在则检查补充缺失参数
     bool loadConfig() {
         try {
+            // 检查sshManager是否有效
+            if (!sshManager) {
+                cerr << "错误: SSH管理器未初始化" << endl;
+                return false;
+            }
+            
+            // 检查SSH连接状态
+            if (sshManager->isSSHDisconnected()) {
+                cerr << "错误: SSH连接已断开，无法加载配置文件" << endl;
+                return false;
+            }
+            
             qDebug() << "正在检查远程配置文件: " << configPath;
             
             // 检查文件是否存在
@@ -402,8 +461,16 @@ public:
                 }
             }
             
+        } catch (const SSHException& e) {
+            cerr << "SSH异常: 加载配置文件失败: " << e.what() << endl;
+            configLoaded = false;
+            return false;
         } catch (const exception& e) {
             cerr << "加载配置文件失败: " << e.what() << endl;
+            configLoaded = false;
+            return false;
+        } catch (...) {
+            cerr << "未知异常: 加载配置文件失败" << endl;
             configLoaded = false;
             return false;
         }
