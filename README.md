@@ -40,7 +40,7 @@ this repository is using to adjust bias for tiangong2.0
 - 增加 `.gitignore` 条目确保 `build/` 目录长期被忽略（如果尚未配置）；
 - 为关键逻辑写小型集成测试（可以在 CI 中通过 mock SSH 或使用受控测试主机）。
 
-如果你要我把这些更新整理成 PR 或进一步完善 README 的语言，我可以继续操作。
+--------
 
 ## 项目概述
 
@@ -82,7 +82,4 @@ ninja
 
 - 仓库已添加 `.gitignore`，会忽略 `build/`、IDE 配置和运行产生的日志等，避免把构建产物提交到版本库。
 
-## 贡献
-
-如果你希望我把本次更改整理为 PR、或为 README 添加英文版本/更详细的安装指南，请告诉我，我可以继续处理。
 
