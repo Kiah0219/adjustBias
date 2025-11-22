@@ -1,0 +1,45 @@
+# Ignore build directory and generated artifacts
+/build/
+build/
+
+# CMake generated files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+rules.ninja
+build.ninja
+Makefile
+
+# Build outputs
+bin/
+lib/
+adjustBias_autogen/
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.pdb
+
+# Qt / IDE related
+*.pro.user
+*.user
+*.qmake.stash
+*.autosave
+*.creator.user
+moc_*.cpp
+ui_*.h
+
+# IDE folders
+.vscode/
+.idea/
+*.iml
+
+# Logs and runtime files
+logs/
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db
