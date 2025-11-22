@@ -23,7 +23,7 @@ int main(int argc, char *argv[])
         }
     }
     Widget w;
-    w.setWindowTitle("强化模式偏置调整V0.3");
+    w.setWindowTitle("强化模式偏置调整V0.4");
     w.show();
     return a.exec();
 }
