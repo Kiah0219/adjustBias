@@ -1,48 +1,6 @@
 # adjustBias
 this repository is using to adjust bias for tiangong2.0
 
-## 更新 (Changelog)
-
-2025-11-22 — 修复与增强
-
-- 改进远程配置读取的可靠性
-	- 文件: `ConfigReader.hpp`
-	- 描述: 将 `executeRemoteCommand` 的读取逻辑改为阻塞读取直到 SSH 通道 EOF，避免因非阻塞短超时导致读取到空或不完整的远端配置内容。
-
-- 在加载失败时显示更详细的错误信息
-	- 文件: `widget.cpp`, `widget.h`
-	- 描述: 当 `main_load()` 捕获到 SSH 或其它异常时，会把详细错误信息保存在 `Widget::lastErrorMessage` 并在 UI 的“加载失败”对话框中显示，方便排查（例如认证失败、网络不可达、libssh2 错误等）。
-
-- 已将上述改动提交至远程仓库（排除了 `build/` 目录）
-	- 提交信息: `修复：改进远端配置读取并显示加载时详细错误信息`
-	- 提交分支: `main`
-
-如何验证 / 测试
-
-1. 在程序中点击“加载”（Load）按钮：
-	 - 成功时会正常读取并将远端配置显示到 UI；
-	 - 失败时弹窗会包含具体错误信息（例如 `SSH连接异常: ...`），并在项目目录下 `logs/` 输出异常日志文件（`exception_*.log`）。
-
-2. 若遇到错误，建议按下列步骤排查：
-	 - 在宿主机上执行网络检测（PowerShell）：
-		 ```powershell
-		 Test-NetConnection -ComputerName <目标IP> -Port 22
-		 ```
-	 - 尝试使用系统/其它 SSH 客户端手动登录以确认用户名/密码与网络是否可达：
-		 ```powershell
-		 ssh ubuntu@<目标IP>
-		 ```
-	 - 查看 `logs/` 目录下最新的 `exception_*.log`，或把 UI 弹窗中的详细错误信息贴出来以便进一步诊断。
-
-建议的后续改进（可选）
-
-- 把 `RemoteCommandExecutor` 的输出改为返回字符串（而不是只打印），以便统一处理错误与输出；
-- 增加 `.gitignore` 条目确保 `build/` 目录长期被忽略（如果尚未配置）；
-- 为关键逻辑写小型集成测试（可以在 CI 中通过 mock SSH 或使用受控测试主机）。
-
---------------------------------------
---------------------------------------
-
 ## 项目概述
 
 adjustBias 是一个用于调整 Tiangong2.0 机器人运动控制参数的桌面工具（基于 Qt）。程序通过 SSH 连接到目标设备，读取/写入远端的参数文件（默认路径: `/home/ubuntu/data/param/rl_control_new.txt`），并在 UI 中提供便捷的参数调整和保存功能。
@@ -82,5 +40,43 @@ ninja
 ## 注意
 
 - 仓库已添加 `.gitignore`，会忽略 `build/`、IDE 配置和运行产生的日志等，避免把构建产物提交到版本库。
+
+
+--------
+
+
+## 更新 (Changelog)
+
+2025-11-22 — 修复与增强
+
+- 改进远程配置读取的可靠性
+	- 文件: `ConfigReader.hpp`
+	- 描述: 将 `executeRemoteCommand` 的读取逻辑改为阻塞读取直到 SSH 通道 EOF，避免因非阻塞短超时导致读取到空或不完整的远端配置内容。
+
+- 在加载失败时显示更详细的错误信息
+	- 文件: `widget.cpp`, `widget.h`
+	- 描述: 当 `main_load()` 捕获到 SSH 或其它异常时，会把详细错误信息保存在 `Widget::lastErrorMessage` 并在 UI 的“加载失败”对话框中显示，方便排查（例如认证失败、网络不可达、libssh2 错误等）。
+
+- 已将上述改动提交至远程仓库（排除了 `build/` 目录）
+	- 提交信息: `修复：改进远端配置读取并显示加载时详细错误信息`
+	- 提交分支: `main`
+
+如何验证 / 测试
+
+1. 在程序中点击“加载”（Load）按钮：
+	 - 成功时会正常读取并将远端配置显示到 UI；
+	 - 失败时弹窗会包含具体错误信息（例如 `SSH连接异常: ...`），并在项目目录下 `logs/` 输出异常日志文件（`exception_*.log`）。
+
+2. 若遇到错误，建议按下列步骤排查：
+	 - 在宿主机上执行网络检测（PowerShell）：
+		 ```powershell
+		 Test-NetConnection -ComputerName <目标IP> -Port 22
+		 ```
+	 - 尝试使用系统/其它 SSH 客户端手动登录以确认用户名/密码与网络是否可达：
+		 ```powershell
+		 ssh ubuntu@<目标IP>
+		 ```
+	 - 查看 `logs/` 目录下最新的 `exception_*.log`，或把 UI 弹窗中的详细错误信息贴出来以便进一步诊断。
+
 
 
