@@ -481,16 +481,21 @@ bool ConfigReader::loadConfig() {
 }
 
 void ConfigReader::writeAllValuesToFile(){
-    setXsenseDataRoll(this->xsense_data_roll);
-    setXsenseDataPitch(this->xsense_data_pitch);
-    setXVelOffset(this->x_vel_offset);
-    setYVelOffset(this->y_vel_offset);
-    setYawVelOffset(this->yaw_vel_offset);
-    setXVelOffsetRun(this->x_vel_offset_run);
-    setYVelOffsetRun(this->y_vel_offset_run);
-    setYawVelOffsetRun(this->yaw_vel_offset_run);
-    setXVelLimitWalk(this->x_vel_limit_walk);
-    setXVelLimitRun(this->x_vel_limit_run);
+    // 批量写入所有参数，避免多次SSH操作
+    vector<pair<string, double>> params = {
+        {"xsense_data_roll", this->xsense_data_roll},
+        {"xsense_data_pitch", this->xsense_data_pitch},
+        {"x_vel_offset", this->x_vel_offset},
+        {"y_vel_offset", this->y_vel_offset},
+        {"yaw_vel_offset", this->yaw_vel_offset},
+        {"x_vel_offset_run", this->x_vel_offset_run},
+        {"y_vel_offset_run", this->y_vel_offset_run},
+        {"yaw_vel_offset_run", this->yaw_vel_offset_run},
+        {"x_vel_limit_walk", this->x_vel_limit_walk},
+        {"x_vel_limit_run", this->x_vel_limit_run}
+    };
+    
+    writeMultipleParametersToFile(params);
 }
 
 bool ConfigReader::updateMultipleParameters(
@@ -518,6 +523,20 @@ bool ConfigReader::updateMultipleParameters(
             return false;
         }
         
+        // 批量更新所有参数，避免多次SSH操作
+        vector<pair<string, double>> params = {
+            {"xsense_data_roll", xsense_data_roll},
+            {"xsense_data_pitch", xsense_data_pitch},
+            {"x_vel_offset", x_vel_offset},
+            {"y_vel_offset", y_vel_offset},
+            {"yaw_vel_offset", yaw_vel_offset},
+            {"x_vel_offset_run", x_vel_offset_run},
+            {"y_vel_offset_run", y_vel_offset_run},
+            {"yaw_vel_offset_run", yaw_vel_offset_run},
+            {"x_vel_limit_walk", x_vel_limit_walk},
+            {"x_vel_limit_run", x_vel_limit_run}
+        };
+        
         // 更新内存中的参数值
         this->xsense_data_roll = xsense_data_roll;
         this->xsense_data_pitch = xsense_data_pitch;
@@ -530,11 +549,14 @@ bool ConfigReader::updateMultipleParameters(
         this->x_vel_limit_walk = x_vel_limit_walk;
         this->x_vel_limit_run = x_vel_limit_run;
         
-        // 使用现有的writeAllValuesToFile方法，但先更新内存值
-        writeAllValuesToFile();
+        // 使用批量写入方法
+        bool success = writeMultipleParametersToFile(params);
         
-        qDebug() << "批量参数更新成功!";
-        return true;
+        if (success) {
+            qDebug() << "批量参数更新成功!";
+        }
+        
+        return success;
         
     } catch (const SSHException& e) {
         cerr << "SSH异常: 批量更新参数失败: " << e.what() << endl;
@@ -651,6 +673,103 @@ vector<string> ConfigReader::getMissingParameters() const {
         }
     }
     return missing;
+}
+
+bool ConfigReader::writeMultipleParametersToFile(const vector<pair<string, double>>& params) {
+    try {
+        // 检查参数列表是否为空
+        if (params.empty()) {
+            qDebug() << "警告: 参数列表为空，无需写入文件";
+            return true;
+        }
+        
+        // 检查sshManager是否有效
+        if (!sshManager) {
+            cerr << "错误: SSH管理器未初始化" << endl;
+            return false;
+        }
+        
+        // 检查SSH连接状态
+        if (sshManager->isSSHDisconnected()) {
+            cerr << "错误: SSH连接已断开，无法写入配置文件" << endl;
+            return false;
+        }
+        
+        qDebug() << "开始批量写入" << params.size() << "个参数到配置文件...";
+        
+        // 读取当前配置文件内容
+        string readCommand = "cat " + configPath;
+        string fileContent = executeRemoteCommand(readCommand);
+        
+        if (fileContent.empty()) {
+            cerr << "配置文件内容为空或读取失败" << endl;
+            return false;
+        }
+        
+        // 将内容按行分割
+        vector<string> lines;
+        istringstream contentStream(fileContent);
+        string line;
+        
+        while (getline(contentStream, line)) {
+            lines.push_back(line);
+        }
+        
+        // 批量更新参数值
+        for (const auto& param : params) {
+            const string& paramName = param.first;
+            double value = param.second;
+            bool paramFound = false;
+            
+            // 在现有行中查找并更新参数
+            for (auto& currentLine : lines) {
+                string trimmedLine = currentLine;
+                trimmedLine.erase(0, trimmedLine.find_first_not_of(" \t"));
+                
+                if (trimmedLine.find(paramName + "=") == 0) {
+                    // 找到参数行，更新值
+                    stringstream newLine;
+                    newLine << paramName << "=" << value;
+                    currentLine = newLine.str();
+                    paramFound = true;
+                    break;
+                }
+            }
+            
+            // 如果参数不存在，添加到文件末尾
+            if (!paramFound) {
+                stringstream newLine;
+                newLine << paramName << "=" << value;
+                lines.push_back(newLine.str());
+                parsedParams.insert(paramName); // 添加到已解析集合
+            }
+            
+            // 更新内存中的参数值
+            setParameterValue(paramName, value);
+        }
+        
+        // 重新写入文件
+        string writeCommand = "cat > " + configPath + " << 'EOF'\n";
+        for (const auto& currentLine : lines) {
+            writeCommand += currentLine + "\n";
+        }
+        writeCommand += "EOF";
+        
+        string result = executeRemoteCommand(writeCommand);
+        
+        qDebug() << "批量写入" << params.size() << "个参数成功完成!";
+        return true;
+        
+    } catch (const SSHException& e) {
+        cerr << "SSH异常: 批量写入参数失败: " << e.what() << endl;
+        return false;
+    } catch (const exception& e) {
+        cerr << "批量写入参数失败: " << e.what() << endl;
+        return false;
+    } catch (...) {
+        cerr << "未知异常: 批量写入参数失败" << endl;
+        return false;
+    }
 }
 
 bool ConfigReader::isConfigLoaded() const { return configLoaded; }

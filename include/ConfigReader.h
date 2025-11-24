@@ -74,6 +74,9 @@ public:
     // 写入参数值到配置文件（更新或添加）
     bool writeParameterToFile(const string& paramName, double value);
     
+    // 批量写入多个参数到配置文件（优化性能）
+    bool writeMultipleParametersToFile(const vector<pair<string, double>>& params);
+    
     // 加载配置文件
     bool loadConfig();
     
