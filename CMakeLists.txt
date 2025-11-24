@@ -1,61 +1,94 @@
 
-# === 设置 UTF-8 编码支持 ===
-# 确保 CMake 输出使用 UTF-8 编码，避免中文乱码
+# === UTF-8 Encoding Support ===
+# Ensure CMake output uses UTF-8 encoding to avoid character encoding issues
 
-# 设置 CMake 内部使用的编码
+# Set CMake message encoding to UTF-8
+if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.15)
+    # Force CMake to use UTF-8 encoding for messages
+    add_compile_definitions(UNICODE _UNICODE)
+    # Set file read/write to use UTF-8
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DUNICODE -D_UNICODE")
+endif()
+
+# Set Windows console encoding to UTF-8
 if(WIN32)
-    # Windows 平台：设置代码页为 UTF-8
-    if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.15)
-        # CMake 3.15+ 支持直接设置控制台代码页
-        set(CMAKE_RC_FLAGS "${CMAKE_RC_FLAGS} /utf-8")
-    endif()
+    # Set system locale to UTF-8
+    set(ENV{LC_ALL} "en_US.UTF-8")
+    set(ENV{LANG} "en_US.UTF-8")
     
-    # 设置编译器使用 UTF-8 编码
+    # Set console encoding during build process
+    set(ENV{PYTHONIOENCODING} "utf-8")
+    
+    # Set compiler to use UTF-8 encoding
     if(MSVC)
-        # MSVC 编译器：使用 /utf-8 选项
+        # MSVC compiler: use /utf-8 option
         add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
         add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
-        # 设置源代码字符集和执行字符集
+        # Set source character set and execution character set
         add_compile_options("$<$<C_COMPILER_ID:MSVC>:/source-charset:utf-8>")
         add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/execution-charset:utf-8>")
     else()
-        # GCC/MinGW 编译器：设置字符集选项
+        # GCC/MinGW compiler: set character set options
         add_compile_options("$<$<C_COMPILER_ID:GNU>:-finput-charset=UTF-8>")
         add_compile_options("$<$<CXX_COMPILER_ID:GNU>:-finput-charset=UTF-8>")
         add_compile_options("$<$<C_COMPILER_ID:GNU>:-fexec-charset=UTF-8>")
         add_compile_options("$<$<CXX_COMPILER_ID:GNU>:-fexec-charset=UTF-8>")
     endif()
+    
+    # Set Windows console encoding to UTF-8
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.15)
+        # CMake 3.15+ supports direct console codepage setting
+        set(CMAKE_RC_FLAGS "${CMAKE_RC_FLAGS} /utf-8")
+    endif()
 endif()
 
-# 设置系统区域为 UTF-8（如果支持）
-if(NOT WIN32)
-    set(ENV{LC_ALL} "en_US.UTF-8")
-    set(ENV{LANG} "en_US.UTF-8")
-endif()
-
-# 设置 CMake 消息输出编码
-if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.15)
-    # 设置文件读写使用 UTF-8
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DUNICODE -D_UNICODE")
-endif()
-
-# === 工具链配置 ===
-# 设置 vcpkg 工具链文件路径，用于管理第三方库依赖
+# === Toolchain Configuration ===
+# Set vcpkg toolchain file path for managing third-party library dependencies
 set(CMAKE_TOOLCHAIN_FILE "C:/vcpkg/scripts/buildsystems/vcpkg.cmake")
 
-# === 项目基础配置 ===
-# 指定 CMake 最低版本要求
+# === Project Basic Configuration ===
+# Specify minimum CMake version requirement
 cmake_minimum_required(VERSION 3.19)
-# 定义项目名称和编程语言
+# Define project name and programming language
 project(adjustBias LANGUAGES CXX)
 
-# === 设置输出目录 ===
-# 将所有输出文件统一放到 bin 目录下
+# Set C++ standard to C++17 (required by Qt 6)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# MSVC specific settings
+if(MSVC)
+    # Enable C++17 support for MSVC
+    add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/Zc:__cplusplus>")
+    # Enable parallel compilation for MSVC
+    add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/MP>")
+    # Use /FS option to avoid PDB file conflicts
+    add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/FS>")
+endif()
+
+# Set C++ standard to C++17 (required by Qt 6)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# MSVC specific settings
+if(MSVC)
+    # Enable C++17 support for MSVC
+    add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/Zc:__cplusplus>")
+    # Enable parallel compilation for MSVC
+    add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/MP>")
+    # Use /FS option to avoid PDB file conflicts
+    add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/FS>")
+endif()
+
+# === Set Output Directories ===
+# Set all output files to be placed in bin directory
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
-# 为不同构建类型设置不同的输出目录（Debug/Release）
+# Set different output directories for different build types (Debug/Release)
 foreach(OUTPUTCONFIG ${CMAKE_CONFIGURATION_TYPES})
     string(TOUPPER ${OUTPUTCONFIG} OUTPUTCONFIG)
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${OUTPUTCONFIG} ${CMAKE_BINARY_DIR}/bin)
@@ -63,145 +96,158 @@ foreach(OUTPUTCONFIG ${CMAKE_CONFIGURATION_TYPES})
     set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${OUTPUTCONFIG} ${CMAKE_BINARY_DIR}/lib)
 endforeach()
 
-# === 查找依赖包 ===
-# 查找 Qt6 库，要求版本 6.5 或更高，必需组件：Core、Widgets、LinguistTools
+# === Find Dependencies ===
+# Find Qt6 library, require version 6.5 or higher, required components: Core, Widgets, LinguistTools
 find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets LinguistTools)
-# 查找 libssh2 库（用于 SSH 连接功能）
+# Find libssh2 library (for SSH connection functionality)
 find_package(libssh2 CONFIG REQUIRED)
 
-# === Qt 项目标准设置 ===
-# 调用 Qt 提供的标准项目设置宏，自动配置 Qt 相关编译选项
+# === Qt Project Standard Setup ===
+# Call Qt's standard project setup macro to automatically configure Qt-related compilation options
 qt_standard_project_setup()
 
 
-# === 创建可执行文件 ===
-# 使用 qt_add_executable 创建 Qt 应用程序
+# === Create Executable ===
+# Use qt_add_executable to create Qt application
 qt_add_executable(adjustBias
-    WIN32           # Windows 平台：创建 GUI 应用程序（不显示控制台窗口）
-    MACOSX_BUNDLE   # macOS 平台：创建应用程序包
-    # 源文件列表
-    main.cpp        # 主程序入口文件
-    widget.cpp      # 界面组件实现文件
-    widget.h        # 界面组件头文件
-    widget.ui       # Qt Designer 设计的界面文件
-    SSHManager.hpp  # SSH 管理类头文件
-    FileHandler.hpp # 文件处理类头文件
-    Logger.hpp      # 日志类头文件
-    RemoteCommandExecutor.hpp  # 远程命令执行类头文件
-    ConfigReader.hpp           # 配置读取类头文件
+    WIN32           # Windows platform: create GUI application (no console window)
+    MACOSX_BUNDLE   # macOS platform: create application bundle
+    # Source files list
+    src/main.cpp        # Main program entry file
+    src/widget.cpp      # Interface component implementation file
+    src/ConfigReader.cpp    # Configuration reader implementation
+    src/FileHandler.cpp     # File handler implementation
+    src/Logger.cpp          # Logger implementation
+    src/RemoteCommandExecutor.cpp  # Remote command executor implementation
+    src/SSHManager.cpp       # SSH manager implementation
+    include/widget.h        # Interface component header file
+    include/widget.ui       # Qt Designer designed interface file
+    include/ConfigReader.h    # Configuration reader header file
+    include/FileHandler.h     # File handler header file
+    include/Logger.h          # Logger header file
+    include/RemoteCommandExecutor.h  # Remote command executor header file
+    include/SSHManager.h       # SSH manager header file
 )
 
 
 
 
-# === 复制资源文件 ===
-# 将 logo.ico 复制到构建目录的 bin/pics 文件夹中
+# === Copy Resource Files ===
+# Copy logo.ico to build directory's bin/pics folder
 add_custom_command(TARGET adjustBias POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/pics
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        ${CMAKE_CURRENT_SOURCE_DIR}/logo.ico
+        ${CMAKE_CURRENT_SOURCE_DIR}/resources/logo.ico
         ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/pics/logo.ico
-    COMMENT "复制 logo.ico 到构建目录的 bin/pics 文件夹"
+    COMMENT "Copy logo.ico to bin/pics folder"
 )
 
-# 安装 logo.ico 到程序安装目录的 pics 文件夹（可选）
+# === Set Header Include Paths ===
+# Add include directory to header search paths
+target_include_directories(adjustBias PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+
+# === Set Header Include Paths ===
+# Add include directory to header search paths
+target_include_directories(adjustBias PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+
+# Install logo.ico to program installation directory's pics folder (optional)
 install(FILES 
-    logo.ico
+    resources/logo.ico
     DESTINATION bin/pics
     OPTIONAL
 )
 
 
 
-# === 设置可执行文件图标 ===
+# === Set Executable Icon ===
 
 
-# === 翻译文件处理 ===
-# 添加多语言翻译支持，将 .ts 文件编译为 .qm 文件
+# === Translation File Processing ===
+# Add multi-language translation support, compile .ts files to .qm files
 qt_add_translations(
-    TARGETS adjustBias          # 目标名称
-    TS_FILES adjustBias_zh_CN.ts # 中文翻译源文件
+    TARGETS adjustBias          # Target name
+    TS_FILES translations/adjustBias_zh_CN.ts # Chinese translation source file
 )
 
-# === 链接库文件 ===
-# 将所需的库链接到可执行文件
+# === Link Libraries ===
+# Link required libraries to the executable
 target_link_libraries(adjustBias
-    PRIVATE  # PRIVATE 表示这些库只在当前目标内部使用，不会传递给其他链接此目标的目标
-        Qt::Core          # Qt 核心库
-        Qt::Widgets       # Qt 界面组件库
-        libssh2::libssh2  # SSH 连接库
-        ws2_32           # Windows 套接字库（网络编程必需）
+    PRIVATE  # PRIVATE means these libraries are only used internally by this target
+        Qt::Core          # Qt core library
+        Qt::Widgets       # Qt widget library
+        libssh2::libssh2  # SSH connection library
+        ws2_32           # Windows socket library (required for network programming)
 )
 
-# === 安装可执行文件 ===
-# 定义如何安装生成的可执行文件
+# === Install Executable ===
+# Define how to install the generated executable
 install(TARGETS adjustBias
-    RUNTIME DESTINATION bin  # Windows：将 .exe 文件安装到 bin 目录
-    BUNDLE DESTINATION bin   # macOS：将 .app 包安装到 bin 目录
+    RUNTIME DESTINATION bin  # Windows: install .exe file to bin directory
+    BUNDLE DESTINATION bin   # macOS: install .app bundle to bin directory
 )
 
-# === 安装翻译文件 ===
-# 安装编译好的中文翻译文件
+# === Install Translation Files ===
+# Install compiled Chinese translation file
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/adjustBias_zh_CN.qm
-    DESTINATION bin  # 安装到 bin 目录
-    OPTIONAL       # 如果文件不存在也不报错（可选文件）
+    DESTINATION bin  # Install to bin directory
+    OPTIONAL       # Don't error if file doesn't exist (optional file)
 )
 
-# === 自动化 Qt 运行时部署 ===
-# 使用 windeployqt 工具自动收集 Qt 运行时依赖
-if(WIN32)  # 仅 Windows 平台执行
-    # 查找 windeployqt 工具
+# === Automated Qt Runtime Deployment ===
+# Use windeployqt tool to automatically collect Qt runtime dependencies
+if(WIN32)  # Only execute on Windows platform
+    # Find windeployqt tool
     find_program(WINDEPLOYQT_EXECUTABLE
-        NAMES windeployqt.exe windeployqt  # 可能的可执行文件名
+        NAMES windeployqt.exe windeployqt  # Possible executable names
         HINTS 
-            "${Qt6_DIR}/../../../bin"  # 从 Qt6_DIR 推断路径
-            "$ENV{QTDIR}/bin"          # 从 QTDIR 环境变量查找
-            "$ENV{QT_DIR}/bin"         # 从 QT_DIR 环境变量查找
+            "${Qt6_DIR}/../../../bin"  # Infer path from Qt6_DIR
+            "$ENV{QTDIR}/bin"          # Find from QTDIR environment variable
+            "$ENV{QT_DIR}/bin"         # Find from QT_DIR environment variable
     )
 
     if(WINDEPLOYQT_EXECUTABLE)
-        # 构建后自动执行部署命令
+        # Automatically execute deployment command after build
         add_custom_command(TARGET adjustBias POST_BUILD
-            # 输出提示信息
-            COMMAND ${CMAKE_COMMAND} -E echo "收集 Qt 运行时依赖..."
-            # 运行 windeployqt 工具，指定输出到 bin 目录
+            # Output status message
+            COMMAND ${CMAKE_COMMAND} -E echo "Collecting Qt runtime dependencies..."
+            # Run windeployqt tool, specify output to bin directory (use CMake variables to avoid path separator issues)
             COMMAND "${WINDEPLOYQT_EXECUTABLE}" --verbose 1 --dir "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}" "$<TARGET_FILE:adjustBias>"
-            COMMENT "自动部署 Qt 运行时库到 bin 目录"
+            COMMENT "Auto-deploy Qt runtime libraries to bin directory"
         )
     else()
-        message(WARNING "windeployqt 未找到：自动部署 Qt 运行时将被跳过。你可以手动运行 windeployqt 或设置 QTDIR 环境变量。")
+        message(WARNING "windeployqt not found: automatic Qt runtime deployment will be skipped. You can manually run windeployqt or set QTDIR environment variable.")
     endif()
 endif()
 
-# === 自定义函数：安装 DLL 依赖 ===
-# 定义函数来自动查找并安装第三方库的 DLL 文件
+# === Custom Function: Install DLL Dependencies ===
+# Define function to automatically find and install third-party library DLL files
 function(install_dll_dependencies target)
-    if(WIN32)  # 仅 Windows 平台需要处理 DLL
-        message(STATUS "正在查找和安装运行时依赖库到 bin 目录...")
+    if(WIN32)  # Only Windows platform needs DLL handling
+        message(STATUS "Finding and installing runtime dependencies to bin directory...")
         
-        # --- 查找 libssh2 DLL（SSH 连接库）---
+        # --- Find libssh2 DLL (SSH connection library) ---
         find_file(LIBSSH2_DLL
-            NAMES libssh2.dll  # 要查找的文件名
-            PATHS "C:/vcpkg/installed/x64-windows/bin"  # 指定搜索路径
-            NO_DEFAULT_PATH  # 只在指定路径查找，不搜索系统默认路径
+            NAMES libssh2.dll  # File name to search for
+            PATHS "C:/vcpkg/installed/x64-windows/bin"  # Specified search path
+            NO_DEFAULT_PATH  # Only search in specified paths, not system default paths
         )
         
         if(LIBSSH2_DLL)
-            install(FILES ${LIBSSH2_DLL} DESTINATION bin)  # 安装到 bin 目录
-            message(STATUS "找到 libssh2 DLL: ${LIBSSH2_DLL}")
+            install(FILES ${LIBSSH2_DLL} DESTINATION bin)  # Install to bin directory
+            message(STATUS "Found libssh2 DLL: ${LIBSSH2_DLL}")
         else()
-            message(WARNING "未找到 libssh2.dll")
+            message(WARNING "libssh2.dll not found")
         endif()
         
-        # --- 查找 OpenSSL 相关 DLL（加密库）---
+        # --- Find OpenSSL related DLLs (encryption library) ---
         find_file(LIBSSL_DLL
-            NAMES libssl-3-x64.dll libssl-1_1-x64.dll  # 支持多个版本
+            NAMES libssl-3-x64.dll libssl-1_1-x64.dll  # Support multiple versions
             PATHS "C:/vcpkg/installed/x64-windows/bin"
             NO_DEFAULT_PATH
         )
         if(LIBSSL_DLL)
             install(FILES ${LIBSSL_DLL} DESTINATION bin)
-            message(STATUS "找到 libssl DLL: ${LIBSSL_DLL}")
+            message(STATUS "Found libssl DLL: ${LIBSSL_DLL}")
         endif()
         
         find_file(LIBCRYPTO_DLL
@@ -211,42 +257,42 @@ function(install_dll_dependencies target)
         )
         if(LIBCRYPTO_DLL)
             install(FILES ${LIBCRYPTO_DLL} DESTINATION bin)
-            message(STATUS "找到 libcrypto DLL: ${LIBCRYPTO_DLL}")
+            message(STATUS "Found libcrypto DLL: ${LIBCRYPTO_DLL}")
         endif()
         
-        # === 查找并安装 MinGW 运行时库 ===
-        message(STATUS "正在查找 MinGW 运行时库...")
+        # === Find and Install MinGW Runtime Libraries ===
+        message(STATUS "Finding MinGW runtime libraries...")
         
-        # 获取当前使用的编译器路径
+        # Get current compiler path
         if(CMAKE_CXX_COMPILER)
             get_filename_component(COMPILER_DIR "${CMAKE_CXX_COMPILER}" DIRECTORY)
-            message(STATUS "编译器目录: ${COMPILER_DIR}")
+            message(STATUS "Compiler directory: ${COMPILER_DIR}")
         else()
             set(COMPILER_DIR "")
         endif()
         
-        # 设置 MinGW 库的搜索路径列表（按优先级排序）
+        # Set MinGW library search paths list (sorted by priority)
         set(MINGW_SEARCH_PATHS
-            "${COMPILER_DIR}"                           # 1. 当前编译器所在目录
-            "C:/Qt/Tools/mingw1120_64/bin"              # 2. Qt 6.5 常见的 MinGW 路径
-            "C:/Qt/Tools/mingw*/bin"                    # 3. 通配符匹配其他 Qt MinGW 版本
-            "C:/mingw64/bin"                           # 4. 独立安装的 MinGW-w64
-            "C:/msys64/mingw64/bin"                    # 5. MSYS2 环境中的 MinGW
-            "$ENV{PATH}"                               # 6. 系统 PATH 环境变量中的路径
+            "${COMPILER_DIR}"                           # 1. Current compiler directory
+            "C:/Qt/Tools/mingw1120_64/bin"              # 2. Common Qt 6.5 MinGW path
+            "C:/Qt/Tools/mingw*/bin"                    # 3. Wildcard match other Qt MinGW versions
+            "C:/mingw64/bin"                           # 4. Independently installed MinGW-w64
+            "C:/msys64/mingw64/bin"                    # 5. MinGW in MSYS2 environment
+            "$ENV{PATH}"                               # 6. Paths in system PATH environment variable
         )
         
-        # 定义必需的 MinGW 运行时库列表
+        # Define required MinGW runtime library list
         set(MINGW_LIBS 
-            "libwinpthread-1.dll"    # 多线程支持库
-            "libgcc_s_seh-1.dll"     # GCC 异常处理库
-            "libstdc++-6.dll"        # C++ 标准库
+            "libwinpthread-1.dll"    # Multithreading support library
+            "libgcc_s_seh-1.dll"     # GCC exception handling library
+            "libstdc++-6.dll"        # C++ standard library
         )
         
-        # 遍历并查找每个必需的 MinGW 库
+        # Iterate and find each required MinGW library
         foreach(LIB_NAME IN LISTS MINGW_LIBS)
-            unset(LIB_FILE CACHE)  # 清除缓存，确保每次都能重新查找
+            unset(LIB_FILE CACHE)  # Clear cache to ensure fresh search each time
             
-            # 首先在预定义的 MinGW 路径中查找
+            # First search in predefined MinGW paths
             find_file(LIB_FILE
                 NAMES ${LIB_NAME}
                 PATHS ${MINGW_SEARCH_PATHS}
@@ -254,45 +300,45 @@ function(install_dll_dependencies target)
             )
             
             if(LIB_FILE)
-                # 找到库文件，安装到 bin 目录
+                # Found library file, install to bin directory
                 install(FILES ${LIB_FILE} DESTINATION bin)
-                message(STATUS "✓ 找到并安装: ${LIB_FILE}")
+                message(STATUS "✓ Found and installed: ${LIB_FILE}")
             else()
-                # 如果在预定义路径中没找到，尝试在系统路径中查找
+                # If not found in predefined paths, try searching system paths
                 find_file(LIB_FILE_SYSTEM
                     NAMES ${LIB_NAME}
                 )
                 if(LIB_FILE_SYSTEM)
                     install(FILES ${LIB_FILE_SYSTEM} DESTINATION bin)
-                    message(STATUS "✓ 找到并安装(系统路径): ${LIB_FILE_SYSTEM}")
+                    message(STATUS "✓ Found and installed (system path): ${LIB_FILE_SYSTEM}")
                 else()
-                    message(WARNING "✗ 未找到 MinGW 库: ${LIB_NAME}")
+                    message(WARNING "✗ MinGW library not found: ${LIB_NAME}")
                 endif()
             endif()
         endforeach()
         
-        # --- 额外查找 zlib 压缩库 ---
+        # --- Additional search for zlib compression library ---
         find_file(ZLIB_DLL
             NAMES zlib1.dll zlib.dll
             PATHS 
-                ${MINGW_SEARCH_PATHS}              # MinGW 路径
-                "C:/vcpkg/installed/x64-windows/bin"  # vcpkg 路径
+                ${MINGW_SEARCH_PATHS}              # MinGW paths
+                "C:/vcpkg/installed/x64-windows/bin"  # vcpkg path
         )
         if(ZLIB_DLL)
             install(FILES ${ZLIB_DLL} DESTINATION bin)
-            message(STATUS "找到 zlib DLL: ${ZLIB_DLL}")
+            message(STATUS "Found zlib DLL: ${ZLIB_DLL}")
         endif()
     endif()
 endfunction()
 
-# === 调用 DLL 依赖安装函数 ===
-# 执行上面定义的函数，为 adjustBias 目标安装依赖
+# === Call DLL Dependency Installation Function ===
+# Execute the function defined above to install dependencies for adjustBias target
 install_dll_dependencies(adjustBias)
 
-# === 安装配置文件 ===
-# 安装应用程序的配置文件（如果有）
+# === Install Configuration Files ===
+# Install application configuration files (if any)
 install(FILES 
-    config.ini  # 配置文件
-    DESTINATION bin  # 安装到 bin 目录
-    OPTIONAL       # 可选文件，不存在时不报错
+    config/config.ini  # Configuration file
+    DESTINATION bin  # Install to bin directory
+    OPTIONAL       # Optional file, don't error if doesn't exist
 )

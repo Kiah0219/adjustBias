@@ -1,4 +1,4 @@
-#include "widget.h"
+#include "../include/widget.h"
 
 #include <QApplication>
 #include <QLocale>
@@ -23,7 +23,7 @@ int main(int argc, char *argv[])
         }
     }
     Widget w;
-    w.setWindowTitle("强化模式偏置调整V0.4");
+    w.setWindowTitle("强化模式偏置调整V0.4.1");
     w.show();
     return a.exec();
 }

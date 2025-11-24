@@ -2,11 +2,12 @@
 #define WIDGET_H
 
 #include <QWidget>
-#include "SSHManager.hpp"
-#include "ConfigReader.hpp"
-#include "RemoteCommandExecutor.hpp"
-#include "FileHandler.hpp" 
-#include "Logger.hpp"
+#include <QLineEdit>
+#include "SSHManager.h"
+#include "ConfigReader.h"
+#include "RemoteCommandExecutor.h"
+#include "FileHandler.h" 
+#include "Logger.h"
 
 
 QT_BEGIN_NAMESPACE
@@ -65,6 +66,9 @@ private:
     std::unique_ptr<ConfigReader> configReader;
     // 最近一次错误信息（用于向用户展示更详细的失败原因）
     std::string lastErrorMessage;
+    
+    // 通用的按钮点击处理函数
+    void adjustParameter(QLineEdit* lineEdit, double& memberVar, double delta, int precision);
 
 
     double q_xsense_data_roll = 0.0;
