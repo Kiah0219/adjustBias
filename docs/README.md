@@ -45,6 +45,45 @@ ninja
 
 ## 更新 (Changelog)
 
+### 2025-11-24 — 编译错误修复与性能优化
+
+#### 🚀 主要改进
+- **修复编译错误**：实现缺失的 `writeMultipleParametersToFile` 方法
+- **性能优化**：批量参数写入，SSH操作从20次减少到2次
+- **代码重构**：将.hpp文件分离为标准.h/.cpp文件对
+- **构建优化**：添加C++17标准支持，解决Qt 6兼容性问题
+
+#### 🔧 具体优化内容
+
+**编译错误修复**
+- **文件**: `ConfigReader.cpp`
+- **改进内容**:
+  - 实现了缺失的 `ConfigReader::writeMultipleParametersToFile` 方法
+  - 修复了链接器未定义引用错误
+  - 完善了批量参数写入的错误处理机制
+
+**性能优化**
+- **文件**: `ConfigReader.cpp`
+- **改进内容**:
+  - 批量参数写入功能，显著减少SSH操作次数
+  - 从每次保存20次SSH操作优化为2次（读取+写入）
+  - 支持参数更新和新增参数的一体化处理
+
+**代码结构重构**
+- **重构文件**: 5个.hpp文件分离为.h/.cpp对
+  - `ConfigReader.hpp` → `ConfigReader.h` + `ConfigReader.cpp`
+  - `FileHandler.hpp` → `FileHandler.h` + `FileHandler.cpp`
+  - `Logger.hpp` → `Logger.h` + `Logger.cpp`
+  - `RemoteCommandExecutor.hpp` → `RemoteCommandExecutor.h` + `RemoteCommandExecutor.cpp`
+  - `SSHManager.hpp` → `SSHManager.h` + `SSHManager.cpp`
+
+**构建系统优化**
+- **文件**: `CMakeLists.txt`
+- **改进内容**:
+  - 添加C++17标准支持：`set(CMAKE_CXX_STANDARD 17)`
+  - 更新源文件引用路径
+  - 修复中文显示问题，完全翻译为英文
+
 ### 2025-11-24 — SSH连接稳定性和程序可靠性重大优化
 
 #### 🚀 主要改进
@@ -56,7 +95,7 @@ ninja
 #### 🔧 具体优化内容
 
 **SSH连接管理优化**
-- **文件**: `SSHManager.hpp`
+- **文件**: `SSHManager.h`
 - **改进内容**:
   - 监控频率从5秒优化为30秒，减少系统开销
   - 添加心跳保持机制，防止长时间无活动导致连接断开
@@ -65,7 +104,7 @@ ninja
   - 改进连接检测：轻量级socket检测 + 会话有效性验证
 
 **命令执行可靠性增强**
-- **文件**: `ConfigReader.hpp`
+- **文件**: `ConfigReader.h`
 - **改进内容**:
   - 添加命令执行重试机制（默认3次重试）
   - 实现超时控制（30秒超时保护）
