@@ -697,6 +697,17 @@ bool ConfigReader::writeMultipleParametersToFile(const vector<pair<string, doubl
         
         qDebug() << "开始批量写入" << params.size() << "个参数到配置文件...";
         
+        // 计算实际需要写入的参数数量（排除NaN值）
+        int validParamCount = 0;
+        for (const auto& param : params) {
+            const string& paramName = param.first;
+            double value = param.second;
+            if ((paramName == "x_vel_limit_walk" || paramName == "x_vel_limit_run") && std::isnan(value)) {
+                continue;
+            }
+            validParamCount++;
+        }
+        
         // 读取当前配置文件内容
         string readCommand = "cat " + configPath;
         string fileContent = executeRemoteCommand(readCommand);
@@ -720,6 +731,12 @@ bool ConfigReader::writeMultipleParametersToFile(const vector<pair<string, doubl
             const string& paramName = param.first;
             double value = param.second;
             bool paramFound = false;
+            
+            // 检查是否为x_vel_limit_walk或x_vel_limit_run且值为NaN，如果是则跳过
+            if ((paramName == "x_vel_limit_walk" || paramName == "x_vel_limit_run") && std::isnan(value)) {
+                qDebug() << "跳过参数" << paramName << "，因为值为NaN";
+                continue;
+            }
             
             // 在现有行中查找并更新参数
             for (auto& currentLine : lines) {
@@ -757,7 +774,7 @@ bool ConfigReader::writeMultipleParametersToFile(const vector<pair<string, doubl
         
         string result = executeRemoteCommand(writeCommand);
         
-        qDebug() << "批量写入" << params.size() << "个参数成功完成!";
+        qDebug() << "批量写入" << validParamCount << "个参数成功完成! (原始" << params.size() << "个参数)";
         return true;
         
     } catch (const SSHException& e) {
