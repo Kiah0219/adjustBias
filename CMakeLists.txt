@@ -117,14 +117,12 @@ qt_add_executable(adjustBias
     src/widget.cpp      # Interface component implementation file
     src/ConfigReader.cpp    # Configuration reader implementation
     src/FileHandler.cpp     # File handler implementation
-    src/Logger.cpp          # Logger implementation
     src/RemoteCommandExecutor.cpp  # Remote command executor implementation
     src/SSHManager.cpp       # SSH manager implementation
     include/widget.h        # Interface component header file
     include/widget.ui       # Qt Designer designed interface file
     include/ConfigReader.h    # Configuration reader header file
     include/FileHandler.h     # File handler header file
-    include/Logger.h          # Logger header file
     include/RemoteCommandExecutor.h  # Remote command executor header file
     include/SSHManager.h       # SSH manager header file
 )

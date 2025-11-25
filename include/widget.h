@@ -6,8 +6,7 @@
 #include "SSHManager.h"
 #include "ConfigReader.h"
 #include "RemoteCommandExecutor.h"
-#include "FileHandler.h" 
-#include "Logger.h"
+#include "FileHandler.h"
 
 
 QT_BEGIN_NAMESPACE
