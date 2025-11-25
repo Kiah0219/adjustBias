@@ -467,5 +467,36 @@ bool SSHManager::isSessionValid() { return sessionValid; }
 
 // 强制设置会话为无效（用于模拟中断后的状态）
 void SSHManager::invalidateSession() { 
-    sessionValid = false; 
+    // 快速标记会话无效
+    sessionValid = false;
+    
+    // 异步停止监控线程，不等待
+    monitorRunning.store(false);
+    
+    // 等待监控线程结束（最多等待1秒）
+    if (monitorThread.joinable()) {
+        monitorThread.join();
+    }
+    
+    // 彻底清理SSH资源和socket连接
+    if (session) {
+        // 使用非阻塞方式断开连接，避免等待
+        libssh2_session_set_blocking(session, 0);
+        
+        // 发送断开请求（非阻塞）
+        libssh2_session_disconnect(session, "User requested disconnect");
+        
+        // 释放会话资源
+        libssh2_session_free(session);
+        session = nullptr;
+    }
+    
+    // 关闭socket连接
+    if (sock != INVALID_SOCKET) {
+        closesocket(sock);
+        sock = INVALID_SOCKET;
+    }
+    
+    // 注意：不在invalidateSession中调用libssh2_exit()，
+    // 因为析构函数会负责最终的清理工作
 }

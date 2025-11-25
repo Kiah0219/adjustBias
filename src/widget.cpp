@@ -10,6 +10,8 @@
 #include <QFile>
 #include <iostream>
 #include <cmath>
+#include <limits>
+#include <limits>
 
 
 // 添加静态方法用于记录异常日志
@@ -53,7 +55,8 @@ Widget::Widget(QWidget *parent)
 {
     ui->setupUi(this);
 
-    connect(ui->ip_lineEdit, &QLineEdit::returnPressed, this, &Widget::on_loadButton_clicked);    
+    connect(ui->ip_lineEdit, &QLineEdit::returnPressed, this, &Widget::on_loadButton_clicked);
+    connect(ui->disconnectButton, &QPushButton::clicked, this, &Widget::on_disconnectButton_clicked);    
 }
 
 Widget::~Widget()
@@ -284,17 +287,37 @@ int Widget::main_save(){
         if (ok && q_yaw_vel_offset_run != yawRunValue) 
             q_yaw_vel_offset_run = yawRunValue;
             
-        // 处理特殊的 nan 值
-        if(ui->limit_walk_lineEdit->text() != QString("nan")) {
+        // 处理限速值：如果输入不是数字，则不写入
+        if(ui->limit_walk_lineEdit->text() == QString("nan")) {
+            // 如果UI中限速值为nan，设置成员变量为NaN，触发删除逻辑
+            q_x_vel_limit_walk = std::numeric_limits<double>::quiet_NaN();
+            qDebug() << "检测到x_vel_limit_walk为nan，将触发删除逻辑";
+        } else {
             double limitWalkValue = ui->limit_walk_lineEdit->text().toDouble(&ok);
-            if (ok && q_x_vel_limit_walk != limitWalkValue) 
-                q_x_vel_limit_walk = limitWalkValue;
+            if (ok) {
+                if (q_x_vel_limit_walk != limitWalkValue) 
+                    q_x_vel_limit_walk = limitWalkValue;
+            } else {
+                // 如果输入不是有效数字，显示警告但不更新成员变量
+                qDebug() << "警告: x_vel_limit_walk输入不是有效数字，将跳过写入";
+                QMessageBox::warning(nullptr, "输入错误", "行走速度限制值不是有效数字，将跳过保存！");
+            }
         }
         
-        if(ui->limit_run_lineEdit->text() != QString("nan")) {
+        if(ui->limit_run_lineEdit->text() == QString("nan")) {
+            // 如果UI中限速值为nan，设置成员变量为NaN，触发删除逻辑
+            q_x_vel_limit_run = std::numeric_limits<double>::quiet_NaN();
+            qDebug() << "检测到x_vel_limit_run为nan，将触发删除逻辑";
+        } else {
             double limitRunValue = ui->limit_run_lineEdit->text().toDouble(&ok);
-            if (ok && q_x_vel_limit_run != limitRunValue) 
-                q_x_vel_limit_run = limitRunValue;
+            if (ok) {
+                if (q_x_vel_limit_run != limitRunValue) 
+                    q_x_vel_limit_run = limitRunValue;
+            } else {
+                // 如果输入不是有效数字，显示警告但不更新成员变量
+                qDebug() << "警告: x_vel_limit_run输入不是有效数字，将跳过写入";
+                QMessageBox::warning(nullptr, "输入错误", "跑步速度限制值不是有效数字，将跳过保存！");
+            }
         }
     } catch (const std::exception& e) {
         QString msg = QString("解析UI数值时发生异常: %1").arg(e.what());
@@ -445,4 +468,55 @@ void Widget::on_yaw_run_plus_pushButton_clicked() {
 
 void Widget::on_yaw_run_minus_pushButton_clicked() {
     adjustParameter(ui->yaw_run_lineEdit, q_yaw_vel_offset_run, -0.001, 4);
+}
+
+void Widget::on_disconnectButton_clicked() {
+    try {
+        // 快速检查是否有SSH连接需要断开
+        if (!sshManager) {
+            QMessageBox::information(this, "信息", "SSH连接未建立连接！");
+            return;
+        }
+        
+        // 创建进度对话框，与加载和保存按钮保持一致
+        QProgressDialog progressDialog("正在断开SSH连接...", "", 0, 0, this);
+        progressDialog.setWindowTitle("断开连接");
+        progressDialog.setCancelButton(nullptr); // 移除取消按钮
+        progressDialog.setWindowModality(Qt::WindowModal);
+        
+        // 强制显示对话框
+        progressDialog.setMinimumDuration(0); // 立即显示，不延迟
+        progressDialog.setValue(0); // 初始化进度
+        
+        // 模拟耗时操作（可选）
+        QCoreApplication::processEvents();
+        
+        // 执行断开连接逻辑
+        sshManager->invalidateSession();
+        
+        // 快速清除UI界面上所有lineEdit的内容
+        ui->roll_lineEdit->clear();
+        ui->pitch_lineEdit->clear();
+        ui->x_lineEdit->clear();
+        ui->y_lineEdit->clear();
+        ui->yaw_lineEdit->clear();
+        ui->x_run_lineEdit->clear();
+        ui->y_run_lineEdit->clear();
+        ui->yaw_run_lineEdit->clear();
+        ui->limit_walk_lineEdit->clear();
+        ui->limit_run_lineEdit->clear();
+        
+        // 关闭对话框
+        progressDialog.close();
+        
+        // 显示断开成功消息
+        QMessageBox::information(this, "信息", "SSH连接已成功断开！\n界面内容已清空。");
+        
+        qDebug() << "SSH连接已主动断开，UI界面已清空";
+        
+    } catch (const std::exception& e) {
+        QString msg = QString("断开SSH连接时发生异常: %1").arg(e.what());
+        logException("std::exception", msg, "on_disconnectButton_clicked");
+        QMessageBox::warning(this, "错误", msg);
+    }
 }

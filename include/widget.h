@@ -47,6 +47,7 @@ private slots:
     void on_y_run_minus_pushButton_clicked();
     void on_yaw_run_plus_pushButton_clicked();
     void on_yaw_run_minus_pushButton_clicked();
+    void on_disconnectButton_clicked();
 
 
 

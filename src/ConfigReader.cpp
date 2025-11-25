@@ -371,12 +371,17 @@ bool ConfigReader::writeParameterToFile(const string& paramName, double value) {
         }
 
         
-        // 重新写入文件
-        string writeCommand = "cat > " + configPath + " << 'EOF'\n";
+        // 显示最终要写入的内容
+        qDebug() << "最终要写入的配置文件内容:";
+        string finalContent;
         for (const auto& currentLine : lines) {
-            writeCommand += currentLine + "\n";
+            finalContent += currentLine + "\n";
+            qDebug().noquote() << QString::fromStdString(currentLine);
         }
-        writeCommand += "EOF";
+        qDebug() << "最终配置文件行数:" << lines.size();
+        
+        // 重新写入文件
+        string writeCommand = "cat > " + configPath + " << 'EOF'\n" + finalContent + "EOF";
         
         string result = executeRemoteCommand(writeCommand);
         
@@ -708,6 +713,10 @@ bool ConfigReader::writeMultipleParametersToFile(const vector<pair<string, doubl
             validParamCount++;
         }
         
+        qDebug() << "开始批量写入参数，原始参数数量:" << params.size() << ", 有效参数数量:" << validParamCount;
+        
+        qDebug() << "开始批量写入参数，原始参数数量:" << params.size() << ", 有效参数数量:" << validParamCount;
+        
         // 读取当前配置文件内容
         string readCommand = "cat " + configPath;
         string fileContent = executeRemoteCommand(readCommand);
@@ -716,6 +725,9 @@ bool ConfigReader::writeMultipleParametersToFile(const vector<pair<string, doubl
             cerr << "配置文件内容为空或读取失败" << endl;
             return false;
         }
+        
+        qDebug() << "读取到的配置文件内容:";
+        qDebug().noquote() << QString::fromStdString(fileContent);
         
         // 将内容按行分割
         vector<string> lines;
@@ -726,15 +738,34 @@ bool ConfigReader::writeMultipleParametersToFile(const vector<pair<string, doubl
             lines.push_back(line);
         }
         
+        qDebug() << "配置文件行数:" << lines.size();
+        
         // 批量更新参数值
         for (const auto& param : params) {
             const string& paramName = param.first;
             double value = param.second;
             bool paramFound = false;
             
-            // 检查是否为x_vel_limit_walk或x_vel_limit_run且值为NaN，如果是则跳过
+            // 检查是否为x_vel_limit_walk或x_vel_limit_run且值为NaN，如果是则删除该参数
             if ((paramName == "x_vel_limit_walk" || paramName == "x_vel_limit_run") && std::isnan(value)) {
-                qDebug() << "跳过参数" << paramName << "，因为值为NaN";
+                qDebug() << "删除参数" << paramName << "，因为值为NaN";
+                
+                // 从配置文件中删除该参数行
+                auto it = lines.begin();
+                while (it != lines.end()) {
+                    string trimmedLine = *it;
+                    trimmedLine.erase(0, trimmedLine.find_first_not_of(" \t"));
+                    
+                    if (trimmedLine.find(paramName + "=") == 0) {
+                        // 找到参数行，删除它
+                        it = lines.erase(it);
+                        // 从已解析参数集合中删除
+                        parsedParams.erase(paramName);
+                        qDebug() << "已从配置文件中删除参数:" << paramName;
+                    } else {
+                        ++it;
+                    }
+                }
                 continue;
             }
             
@@ -765,12 +796,17 @@ bool ConfigReader::writeMultipleParametersToFile(const vector<pair<string, doubl
             setParameterValue(paramName, value);
         }
         
-        // 重新写入文件
-        string writeCommand = "cat > " + configPath + " << 'EOF'\n";
+        // 显示最终要写入的内容
+        qDebug() << "最终要写入的配置文件内容:";
+        string finalContent;
         for (const auto& currentLine : lines) {
-            writeCommand += currentLine + "\n";
+            finalContent += currentLine + "\n";
+            qDebug().noquote() << QString::fromStdString(currentLine);
         }
-        writeCommand += "EOF";
+        qDebug() << "最终配置文件行数:" << lines.size();
+        
+        // 重新写入文件
+        string writeCommand = "cat > " + configPath + " << 'EOF'\n" + finalContent + "EOF";
         
         string result = executeRemoteCommand(writeCommand);
         
