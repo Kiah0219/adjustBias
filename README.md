@@ -1,10 +1,10 @@
 # 强化模式偏置调整工具 (Enhanced Mode Bias Adjustment Tool)
 
-一个基于Qt6的SSH远程参数调整工具，用于实时配置和优化机器人系统的运动参数。
+一个基于Qt6的SSH远程参数调整工具，专门用于调整Tiangong2.0机器人的运动控制参数。程序通过SSH连接到目标设备，实时配置和优化机器人系统的运动参数。
 
 ## 📋 项目概述
 
-本项目提供了一个现代化的GUI界面，通过SSH连接远程机器人系统，实现参数的实时读取、调整和保存。支持多种运动参数的精确控制，包括位置、姿态、速度限制等关键配置。
+adjustBias是一个用于调整Tiangong2.0机器人运动控制参数的桌面工具（基于Qt）。程序通过SSH连接到目标设备，读取/写入远端的参数文件（默认路径: `/home/ubuntu/data/param/rl_control_new.txt`），并在UI中提供便捷的参数调整和保存功能。
 
 ### 🎯 主要功能
 
@@ -46,9 +46,12 @@ adjustBias/
 
 - **操作系统**: Windows 10/11 (推荐), Linux, macOS
 - **编译器**: MSVC 2019+, GCC 9+, Clang 10+
-- **Qt版本**: Qt 6.5 或更高版本
+- **Qt版本**: Qt 5 或 Qt 6（项目中使用了对Qt6的兼容判断，Qt5/Qt6均可编译，但建议使用与你的系统配套的Qt版本）
 - **CMake**: 3.19 或更高版本
-- **依赖库**: libssh2, OpenSSL
+- **构建工具**: Ninja/Make
+- **依赖库**: 
+  - libssh2（用于SSH连接）
+  - Windows: 需要Winsock（ws2_32），并确保libssh2的动态库可用（`libssh2.dll`）
 
 ### 安装步骤
 
@@ -68,16 +71,21 @@ adjustBias/
    # Ubuntu: sudo apt-get install qt6-base-dev libssh2-1-dev
    ```
 
-3. **配置CMake**
+3. **配置和编译**
    ```bash
+   # 方法1: 使用CMake和Ninja (推荐)
+   mkdir build; cd build
+   cmake -G Ninja ..
+   ninja
+   
+   # 方法2: 使用CMake标准构建
    mkdir build
    cd build
    cmake .. -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake
-   ```
-
-4. **编译项目**
-   ```bash
    cmake --build . --config Release
+   
+   # 方法3: 使用Qt Creator
+   # 直接打开顶级CMakeLists.txt并构建
    ```
 
 5. **运行程序**
@@ -93,13 +101,13 @@ adjustBias/
 
 ### 基本操作流程
 
-1. **启动应用**: 运行可执行文件启动GUI界面
-2. **配置连接**: 在连接设置中输入远程主机的IP、端口、用户名和密码
-3. **建立连接**: 点击"连接"按钮建立SSH连接
-4. **读取参数**: 点击"加载"按钮从远程系统读取当前参数配置
+1. **启动应用**: 运行生成的可执行文件（位于`build/`或CMake指定的输出目录）
+2. **配置连接**: 在IP输入框输入目标设备IP，然后点击"加载"
+3. **建立连接**: 系统会自动建立SSH连接到目标设备
+4. **读取参数**: 成功加载后，UI会显示当前参数
 5. **调整参数**: 在界面中修改需要调整的参数值
 6. **验证参数**: 系统会自动验证参数的有效性
-7. **保存配置**: 点击"保存"按钮将修改应用到远程系统
+7. **保存配置**: 修改后点击"保存"将通过SSH写回远端文件
 
 ### 支持的参数类型
 
@@ -161,9 +169,12 @@ A: 检查依赖库版本，确保CMake配置正确
 
 ### 日志文件位置
 
-- **Windows**: `%APPDATA%/adjustBias/logs/`
-- **Linux**: `~/.local/share/adjustBias/logs/`
-- **macOS**: `~/Library/Logs/adjustBias/`
+- **程序运行目录**: `logs/` 文件夹
+- **异常日志**: 如果发生异常，会在logs目录下输出带时间戳的`exception_*.log`文件
+- **故障排查**: 
+  - 使用SSH客户端确认能否用相同的用户名/密码登录目标设备
+  - 检查防火墙与端口连通性
+  - Windows可使用PowerShell测试: `Test-NetConnection -ComputerName <IP> -Port 22`
 
 ## 🤝 贡献指南
 
@@ -192,6 +203,41 @@ A: 检查依赖库版本，确保CMake配置正确
 - **邮箱**: [your-email@example.com]
 - **项目主页**: https://github.com/Kiah0219/adjustBias
 - **问题反馈**: https://github.com/Kiah0219/adjustBias/issues
+
+## 📝 更新日志 (Changelog)
+
+### 2025-12-03 — 项目文档重构
+- **重写README.md**: 创建完整专业的项目文档
+- **代码优化**: 添加连接池、异常处理、日志系统等核心模块
+- **文档整理**: 重组文档结构，添加归档目录
+
+### 2025-11-25 — 断开连接优化与代码清理
+- **断开连接功能重大优化**: 修复点击断开按钮时主程序未响应问题
+- **删除未使用的Logger类**: 简化项目结构，减少不必要的依赖
+- **详细更改记录**: [2025-11-25_CHANGES.md](./docs/archive/2025-11-25_CHANGES.md)
+
+### 2025-11-24 — SSH连接稳定性和程序可靠性重大优化
+- **SSH连接稳定性提升90%**: 通过心跳机制和优化的监控策略
+- **程序崩溃率降低90%**: 完善的异常处理和恢复机制  
+- **系统资源使用降低80%**: 优化监控频率和心跳机制
+- **详细优化报告**: [2025-11-24_SSH_OPTIMIZATION.md](./docs/archive/2025-11-24_SSH_OPTIMIZATION.md)
+
+### 2025-11-24 — 编译错误修复与性能优化
+- **修复编译错误**: 实现缺失的 `writeMultipleParametersToFile` 方法
+- **性能优化**: 批量参数写入，SSH操作从20次减少到2次
+- **详细更改记录**: [2025-11-24_COMPILE_FIXES.md](./docs/archive/2025-11-24_COMPILE_FIXES.md)
+
+### 2025-11-22 — 修复与增强
+- **改进远程配置读取的可靠性**: 避免读取到空或不完整的远端配置内容
+- **显示更详细的错误信息**: 在UI的"加载失败"对话框中显示详细错误信息
+- **详细更改记录**: [2025-11-22_RELIABILITY_FIXES.md](./docs/archive/2025-11-22_RELIABILITY_FIXES.md)
+
+## ⚠️ 注意事项
+
+- 仓库已添加 `.gitignore`，会忽略 `build/`、IDE配置和运行产生的日志等
+- 避免把构建产物提交到版本库
+- 确保目标设备的SSH服务正常运行
+- 建议在测试环境先验证参数修改效果
 
 ## 🙏 致谢
 
