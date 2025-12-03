@@ -7,6 +7,7 @@
 #include "ConfigReader.h"
 #include "RemoteCommandExecutor.h"
 #include "FileHandler.h"
+#include "Exceptions.h"
 
 
 QT_BEGIN_NAMESPACE

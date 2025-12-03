@@ -157,7 +157,8 @@ void Widget::on_loadButton_clicked()
             // // 用户点击了“是”
             QMessageBox loadingBox;
             loadingBox.setWindowTitle("加载中");
-            loadingBox.setText("正在加载配置，请稍候...");
+            loadingBox.setText("正在加载配置，请稍候...
+(最长等待时间: 5秒)");
             loadingBox.setStandardButtons(QMessageBox::NoButton);
             loadingBox.setWindowFlags(Qt::Window | Qt::WindowTitleHint | Qt::CustomizeWindowHint);
             loadingBox.setModal(true);

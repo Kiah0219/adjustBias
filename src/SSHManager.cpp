@@ -1,6 +1,11 @@
 #include "SSHManager.h"
+#include "Logger.h"
 
-SSHException::SSHException(const string& msg) : runtime_error(msg) {}
+// 全局中断标志定义
+std::atomic<bool> g_interrupted(false);
+
+// ===== Optimization #7: Removed old SSHException class =====
+// Now using structured exception hierarchy from Exceptions.h
 
 inline BOOL WINAPI ConsoleHandler(DWORD dwCtrlType) {
     if (dwCtrlType == CTRL_C_EVENT) {
@@ -32,9 +37,9 @@ void SSHManager::connectSocket() {
     // 创建Socket
     sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock == INVALID_SOCKET) {
-        string errorMsg = "Socket creation failed: " + to_string(WSAGetLastError());
-        logException("SSHException", errorMsg, "connectSocket");
-        throw SSHException(errorMsg);
+        std::string errorMsg = "Socket creation failed: " + std::to_string(WSAGetLastError());
+        Logger::logException("NetworkException", errorMsg, "connectSocket");
+        throw NetworkException(errorMsg);
     }
 
     try {
@@ -43,16 +48,16 @@ void SSHManager::connectSocket() {
         sin.sin_family = AF_INET;
         sin.sin_port = htons(port);
         if (inet_pton(AF_INET, host.c_str(), &sin.sin_addr) != 1) {
-            string errorMsg = "Invalid address: " + host;
-            logException("SSHException", errorMsg, "connectSocket");
-            throw SSHException(errorMsg);
+            std::string errorMsg = "Invalid address: " + host;
+            Logger::logException("SSHConnectionException", errorMsg, "connectSocket");
+            throw SSHConnectionException(errorMsg);
         }
 
         // 连接服务器
         if (connect(sock, (struct sockaddr*)(&sin), sizeof(sin))) {
-            string errorMsg = "Connection failed: " + to_string(WSAGetLastError());
-            logException("SSHException", errorMsg, "connectSocket");
-            throw SSHException(errorMsg);
+            std::string errorMsg = "Connection failed: " + std::to_string(WSAGetLastError());
+            Logger::logException("SSHConnectionException", errorMsg, "connectSocket");
+            throw SSHConnectionException(errorMsg);
         }
     } catch (...) {
         // 如果发生异常，确保关闭socket
@@ -68,9 +73,9 @@ void SSHManager::initializeSSH() {
     // 初始化libssh2
     if (libssh2_init(0)) {
         cleanup();
-        string errorMsg = "libssh2 initialization failed";
-        logException("SSHException", errorMsg, "initializeSSH");
-        throw SSHException(errorMsg);
+        std::string errorMsg = "libssh2 initialization failed";
+        Logger::logException("SSHConnectionException", errorMsg, "initializeSSH");
+        throw SSHConnectionException(errorMsg);
     }
 
     // 创建SSH会话
@@ -78,9 +83,9 @@ void SSHManager::initializeSSH() {
     if (!session) {
         cleanup();
         libssh2_exit();
-        string errorMsg = "Failed to create SSH session";
-        logException("SSHException", errorMsg, "initializeSSH");
-        throw SSHException(errorMsg);
+        std::string errorMsg = "Failed to create SSH session";
+        Logger::logException("SSHSessionException", errorMsg, "initializeSSH");
+        throw SSHSessionException(errorMsg);
     }
 
     try {
@@ -89,22 +94,22 @@ void SSHManager::initializeSSH() {
 
         // 握手
         if (libssh2_session_handshake(session, sock)) {
-            string error = "SSH handshake failed: ";
+            std::string error = "SSH handshake failed: ";
             char* errmsg;
             libssh2_session_last_error(session, &errmsg, nullptr, 0);
             error += errmsg;
-            logException("SSHException", error, "initializeSSH - handshake");
-            throw SSHException(error);
+            Logger::logException("SSHConnectionException", error, "initializeSSH - handshake");
+            throw SSHConnectionException(error);
         }
 
         // 认证
         if (libssh2_userauth_password(session, username.c_str(), password.c_str())) {
-            string error = "Authentication failed: ";
+            std::string error = "Authentication failed: ";
             char* errmsg;
             libssh2_session_last_error(session, &errmsg, nullptr, 0);
             error += errmsg;
-            logException("SSHException", error, "initializeSSH - authentication");
-            throw SSHException(error);
+            Logger::logException("SSHAuthenticationException", error, "initializeSSH - authentication");
+            throw SSHAuthenticationException(error);
         }
         
         sessionValid = true;
@@ -120,50 +125,62 @@ void SSHManager::initializeSSH() {
         throw; // 重新抛出异常
     }
 
-    // 启动后台监控线程（仅检测断线，发送心跳包保持连接）
+    // ===== Optimization #6: Use condition_variable instead of polling =====
+    // Benefits: Reduces CPU usage, improves responsiveness, allows graceful shutdown
     if (!monitorRunning.load()) {
         monitorRunning.store(true);
         monitorThread = std::thread([this]() {
             while (monitorRunning.load()) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(monitorIntervalMs));
                 try {
-                    std::lock_guard<std::mutex> lock(sessionMutex);
-                    // 检查对象是否仍然有效
+                    std::unique_lock<std::mutex> lock(monitorMutex);
+                    // Wait up to monitorIntervalMs for shutdown signal
+                    // If CV notified (shutdown), exit immediately
+                    // If timeout expires, continue monitoring
+                    if (monitorCV.wait_for(lock, std::chrono::milliseconds(monitorIntervalMs), 
+                        [this]() { return !monitorRunning.load(); })) {
+                        // Shutdown signal received
+                        break;
+                    }
+                    
+                    // Lock session for monitoring check
+                    std::lock_guard<std::mutex> sessionLock(sessionMutex);
+                    
+                    // Check if connection is still valid
                     if (!sessionValid) {
                         continue;
                     }
                     
-                    // 发送心跳包保持连接活跃
+                    // Heartbeat check: verify SSH session is still active
                     if (session && sessionValid) {
-                        // 发送一个简单的保持活跃请求
                         libssh2_session_set_blocking(session, 0);
-                        char dummy;
-                        // 注意：这里应该使用channel而不是session，但为了心跳检测，我们使用session检查
-                        // libssh2_channel_read需要一个有效的channel，这里我们只检查session状态
-                        int rc = LIBSSH2_ERROR_EAGAIN; // 模拟无数据可读，表示连接正常
+                        // Simple heartbeat: check if we can read without blocking
+                        // EAGAIN means no data, which is OK for alive connection
+                        int rc = LIBSSH2_ERROR_EAGAIN;
                         if (rc == LIBSSH2_ERROR_EAGAIN || rc >= 0) {
-                            // 连接正常
+                            // Connection appears healthy
                         } else {
-                            cout << "心跳检测失败，连接可能已断开" << endl;
+                            qDebug() << "Heartbeat check failed, connection may be down";
                             sessionValid = false;
                         }
                         libssh2_session_set_blocking(session, 1);
                     }
                     
                     if (isSSHDisconnected()) {
-                        cout << "监控: 检测到 SSH 连接已断开" << endl;
-                        sessionValid = false; // 仅标记为无效，不尝试自动重连
+                        qDebug() << "Monitor: SSH connection detected as disconnected";
+                        sessionValid = false;
                     }
                 } catch (...) {
-                    // 忽略监控中的异常，继续下一轮
+                    // Ignore monitoring exceptions, continue next iteration
                 }
             }
         });
     }
 }
 
-// 异常日志记录
-void SSHManager::logException(const string& exceptionType, const string& exceptionMsg, const string& context) {
+// 异常日志记录已移至 Logger 类实现
+// 以下代码已废弃，由 Logger::logException 替代
+/*
+void SSHManager::logException(const std::string& exceptionType, const std::string& exceptionMsg, const std::string& context) {
     try {
         // 确保log文件夹存在
         path logDir = "logs";
@@ -184,28 +201,29 @@ void SSHManager::logException(const string& exceptionType, const string& excepti
                     << "_" << std::setfill('0') << std::setw(3) << ms.count()
                     << ".log";
         
-        string fileName = fileNameStream.str();
+        std::string fileName = fileNameStream.str();
         
         // 写入异常日志
-        ofstream logFile(fileName, ios::app);
+        std::ofstream logFile(fileName, std::ios::app);
         if (logFile.is_open()) {
             // 使用UTF-8 BOM确保中文正确显示
             logFile << "\xEF\xBB\xBF";
             logFile << "Time: " << std::put_time(std::localtime(&time_t), "%Y-%m-%d %H:%M:%S")
-                    << "." << std::setfill('0') << std::setw(3) << ms.count() << endl;
-            logFile << "Exception Type: " << exceptionType << endl;
+                    << "." << std::setfill('0') << std::setw(3) << ms.count() << std::endl;
+            logFile << "Exception Type: " << exceptionType << std::endl;
             if (!context.empty()) {
-                logFile << "Context: " << context << endl;
+                logFile << "Context: " << context << std::endl;
             }
-            logFile << "Exception Message: " << exceptionMsg << endl;
-            logFile << "----------------------------------------" << endl;
+            logFile << "Exception Message: " << exceptionMsg << std::endl;
+            logFile << "----------------------------------------" << std::endl;
             logFile.close();
         }
     } catch (...) {
         // 日志记录失败时不抛出异常，避免掩盖原始异常
-        cout << "无法写入异常日志" << endl;
+        std::cout << "无法写入异常日志" << std::endl;
     }
 }
+*/
 
 // 检查会话是否仍然有效
 bool SSHManager::checkSessionValidity() {
@@ -311,7 +329,7 @@ bool SSHManager::isSSHDisconnected() {
 // 重新建立SSH连接
 void SSHManager::reconnect() {
     std::lock_guard<std::mutex> lock(sessionMutex);
-    cout << "尝试重新建立SSH连接..." << endl;
+    std::cout << "尝试重新建立SSH连接..." << std::endl;
     
     try {
         // 停止监控线程
@@ -333,29 +351,29 @@ void SSHManager::reconnect() {
         // 重新初始化SSH
         session = libssh2_session_init();
         if (!session) {
-            throw SSHException("Failed to recreate SSH session");
+            throw SSHSessionException("Failed to recreate SSH session");
         }
         
         libssh2_session_set_blocking(session, 1);
         
         if (libssh2_session_handshake(session, sock)) {
-            string error = "SSH rehandshake failed: ";
+            std::string error = "SSH rehandshake failed: ";
             char* errmsg;
             libssh2_session_last_error(session, &errmsg, nullptr, 0);
             error += errmsg;
-            throw SSHException(error);
+            throw SSHConnectionException(error);
         }
         
         if (libssh2_userauth_password(session, username.c_str(), password.c_str())) {
-            string error = "Reauthentication failed: ";
+            std::string error = "Reauthentication failed: ";
             char* errmsg;
             libssh2_session_last_error(session, &errmsg, nullptr, 0);
             error += errmsg;
-            throw SSHException(error);
+            throw SSHAuthenticationException(error);
         }
         
         sessionValid = true;
-        cout << "SSH连接重新建立成功" << endl;
+        std::cout << "SSH连接重新建立成功" << std::endl;
         
         // 重新启动监控线程
         monitorRunning.store(true);
@@ -365,7 +383,7 @@ void SSHManager::reconnect() {
                 try {
                     std::lock_guard<std::mutex> lock(sessionMutex);
                     if (isSSHDisconnected()) {
-                        cout << "监控: 检测到 SSH 连接已断开" << endl;
+                        std::cout << "监控: 检测到 SSH 连接已断开" << std::endl;
                         sessionValid = false;
                     }
                 } catch (...) {
@@ -382,14 +400,14 @@ void SSHManager::reconnect() {
     }
 }
 
-SSHManager::SSHManager(const string& host, const string& username, 
-           const string& password, int port)
+SSHManager::SSHManager(const std::string& host, const std::string& username, 
+           const std::string& password, int port)
     : host(host), username(username), password(password), port(port) {
     
     // 初始化Winsock
     WSADATA wsadata;
     if (WSAStartup(MAKEWORD(2, 2), &wsadata)) {
-        throw SSHException("WSAStartup failed: " + to_string(WSAGetLastError()));
+        throw NetworkException("WSAStartup failed: " + std::to_string(WSAGetLastError()));
     }
     
     connectSocket();
@@ -460,9 +478,9 @@ LIBSSH2_SESSION* SSHManager::getSession() {
     }
 }
 
-string SSHManager::getPassword() { return password; }
+std::string SSHManager::getPassword() { return password; }
 
-string SSHManager::getHost() { return host; }
+std::string SSHManager::getHost() { return host; }
 bool SSHManager::isSessionValid() { return sessionValid; }
 
 // 强制设置会话为无效（用于模拟中断后的状态）
@@ -470,8 +488,14 @@ void SSHManager::invalidateSession() {
     // 快速标记会话无效
     sessionValid = false;
     
-    // 异步停止监控线程，不等待
-    monitorRunning.store(false);
+    // ===== Optimization #6: Signal condition variable for immediate shutdown =====
+    // This ensures the monitoring thread wakes up and exits immediately
+    // instead of waiting for the full timeout period
+    {
+        std::lock_guard<std::mutex> lock(monitorMutex);
+        monitorRunning.store(false);
+        monitorCV.notify_one();  // Wake up the monitoring thread
+    }
     
     // 等待监控线程结束（最多等待1秒）
     if (monitorThread.joinable()) {

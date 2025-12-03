@@ -1,45 +1,48 @@
 #include "ConfigReader.h"
 #include <QDebug>
 
-bool ConfigReader::validateConfigFile(const string& filePath) {
-    ifstream file(filePath);
+// ===== Optimization #3: Initialize parameter map for O(1) lookup =====
+void ConfigReader::initializeParameterMap() {
+    parameterMap = {
+        {"xsense_data_roll", &xsense_data_roll},
+        {"xsense_data_pitch", &xsense_data_pitch},
+        {"x_vel_offset", &x_vel_offset},
+        {"y_vel_offset", &y_vel_offset},
+        {"yaw_vel_offset", &yaw_vel_offset},
+        {"x_vel_offset_run", &x_vel_offset_run},
+        {"y_vel_offset_run", &y_vel_offset_run},
+        {"yaw_vel_offset_run", &yaw_vel_offset_run},
+        {"x_vel_limit_walk", &x_vel_limit_walk},
+        {"x_vel_limit_run", &x_vel_limit_run}
+    };
+}
+
+bool ConfigReader::validateConfigFile(const std::string& filePath) {
+    std::ifstream file(filePath);
     if (!file.is_open()) {
         return false;
     }
     // 简单验证文件内容是否为空
-    string line;
-    getline(file, line);
+    std::string line;
+    std::getline(file, line);
     return !line.empty();
 }
 
-void ConfigReader::setParameterValue(const string& varName, double value) {
-    if (varName == "xsense_data_roll") {
-        xsense_data_roll = value;
-    } else if (varName == "xsense_data_pitch") {
-        xsense_data_pitch = value;
-    } else if (varName == "x_vel_offset") {
-        x_vel_offset = value;
-    } else if (varName == "y_vel_offset") {
-        y_vel_offset = value;
-    } else if (varName == "yaw_vel_offset") {
-        yaw_vel_offset = value;
-    } else if (varName == "x_vel_offset_run") {
-        x_vel_offset_run = value;
-    } else if (varName == "y_vel_offset_run") {
-        y_vel_offset_run = value;
-    } else if (varName == "yaw_vel_offset_run") {
-        yaw_vel_offset_run = value;
-    } else if (varName == "x_vel_limit_walk") {
-        x_vel_limit_walk = value;
-    } else if (varName == "x_vel_limit_run") {
-        x_vel_limit_run = value;
+// ===== Optimization #3: Use map-based lookup instead of if-else chain =====
+// Performance improvement: O(n) -> O(1) parameter lookup
+void ConfigReader::setParameterValue(const std::string& varName, double value) {
+    auto it = parameterMap.find(varName);
+    if (it != parameterMap.end()) {
+        *(it->second) = value;  // Direct pointer assignment - O(1) lookup
     }
 }
 
-ConfigReader::ConfigReader(SSHManager* manager, const string& configPath) 
-    : sshManager(manager), configPath(configPath) {}
+ConfigReader::ConfigReader(SSHManager* manager, const std::string& configPath) 
+    : sshManager(manager), configPath(configPath) {
+    initializeParameterMap();  // Initialize parameter map for O(1) lookups
+}
 
-string ConfigReader::executeRemoteCommand(const string& command, int maxRetries) {
+std::string ConfigReader::executeRemoteCommand(const std::string& command, int maxRetries) {
     for (int attempt = 0; attempt < maxRetries; ++attempt) {
         try {
             // 检查SSH连接状态
@@ -71,7 +74,7 @@ string ConfigReader::executeRemoteCommand(const string& command, int maxRetries)
             // 为了可靠读取完整输出，使用阻塞模式并读取直到通道 EOF
             libssh2_session_set_blocking(sshManager->getSession(), 1);
             char buffer[1024];
-            string result;
+            std::string result;
 
             auto startTime = chrono::steady_clock::now();
             auto timeout = chrono::seconds(30); // 30秒超时
@@ -116,7 +119,7 @@ string ConfigReader::executeRemoteCommand(const string& command, int maxRetries)
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
         } catch (const std::exception& e) {
             if (attempt == maxRetries - 1) {
-                throw SSHException(string("执行命令时发生异常: ") + e.what());
+                throw SSHException(std::string("执行命令时发生异常: ") + e.what());
             }
             qDebug() << "命令执行异常 " << (attempt + 1) << ": " << e.what();
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
@@ -130,7 +133,7 @@ bool ConfigReader::createDefaultConfig() {
     try {
         // 检查sshManager是否有效
         if (!sshManager) {
-            cerr << "错误: SSH管理器未初始化，无法创建默认配置文件" << endl;
+            std::cerr << "错误: SSH管理器未初始化，无法创建默认配置文件" << std::endl;
             return false;
         }
         
@@ -138,10 +141,10 @@ bool ConfigReader::createDefaultConfig() {
         
         // 创建目录（如果不存在）
         size_t lastSlash = configPath.find_last_of('/');
-        if (lastSlash != string::npos) {
-            string dirPath = configPath.substr(0, lastSlash);
-            string mkdirCommand = "mkdir -p " + dirPath;
-            string result = executeRemoteCommand(mkdirCommand);
+        if (lastSlash != std::string::npos) {
+            std::string dirPath = configPath.substr(0, lastSlash);
+            std::string mkdirCommand = "mkdir -p " + dirPath;
+            std::string result = executeRemoteCommand(mkdirCommand);
             if (result.find("error") != string::npos) {
                 cerr << "创建目录失败: " << dirPath << endl;
             }
@@ -187,10 +190,10 @@ bool ConfigReader::createDefaultConfig() {
     }
 }
 
-void ConfigReader::parseConfigContent(const string& content) {
+void ConfigReader::parseConfigContent(const std::string& content) {
     parsedParams.clear(); // 清空已解析参数集合
-    istringstream contentStream(content);
-    string line;
+    std::istringstream contentStream(content);
+    std::string line;
     
     while (getline(contentStream, line)) {
         // 去除行首尾空白字符
@@ -204,9 +207,9 @@ void ConfigReader::parseConfigContent(const string& content) {
         
         // 查找等号分隔符
         size_t equalPos = line.find('=');
-        if (equalPos != string::npos) {
-            string varName = line.substr(0, equalPos);
-            string valueStr = line.substr(equalPos + 1);
+        if (equalPos != std::string::npos) {
+            std::string varName = line.substr(0, equalPos);
+            std::string valueStr = line.substr(equalPos + 1);
             
             // 去除变量名和值的空白字符
             varName.erase(0, varName.find_first_not_of(" \t"));
@@ -216,26 +219,26 @@ void ConfigReader::parseConfigContent(const string& content) {
             
             try {
                 // 验证数值字符串格式
-                if (valueStr.empty() || valueStr.find_first_not_of("0123456789.-+eE") != string::npos) {
-                    cerr << "无效的数值格式: " << line << endl;
+                if (valueStr.empty() || valueStr.find_first_not_of("0123456789.-+eE") != std::string::npos) {
+                    std::cerr << "无效的数值格式: " << line << std::endl;
                     continue;
                 }
                 
-                double value = stod(valueStr);
+                double value = std::stod(valueStr);
                 // 检查是否为有限数值
                 if (!std::isfinite(value)) {
-                    cerr << "数值不是有限数: " << line << endl;
+                    std::cerr << "数值不是有限数: " << line << std::endl;
                     continue;
                 }
                 
                 setParameterValue(varName, value);
                 parsedParams.insert(varName); // 记录已解析的参数
             } catch (const std::invalid_argument& e) {
-                cerr << "数值格式错误: " << line << " - " << e.what() << endl;
+                std::cerr << "数值格式错误: " << line << " - " << e.what() << std::endl;
             } catch (const std::out_of_range& e) {
-                cerr << "数值超出范围: " << line << " - " << e.what() << endl;
-            } catch (const exception& e) {
-                cerr << "解析数值失败: " << line << " - " << e.what() << endl;
+                std::cerr << "数值超出范围: " << line << " - " << e.what() << std::endl;
+            } catch (const std::exception& e) {
+                std::cerr << "解析数值失败: " << line << " - " << e.what() << std::endl;
             }
         }
     }
@@ -311,7 +314,7 @@ bool ConfigReader::completeMissingParameters() {
     }
 }
 
-bool ConfigReader::writeParameterToFile(const string& paramName, double value) {
+bool ConfigReader::writeParameterToFile(const std::string& paramName, double value) {
     try {
         // 检查参数名是否有效
         if (paramName.empty()) {
@@ -628,22 +631,22 @@ bool ConfigReader::setXVelLimitRun(double value) {
 }
 
 // 通用的参数设置方法
-bool ConfigReader::setParameter(const string& paramName, double value) {
+bool ConfigReader::setParameter(const std::string& paramName, double value) {
     return writeParameterToFile(paramName, value);
 }
 
 // 获取配置文件路径
-string ConfigReader::getConfigPath() const { return configPath; }
+std::string ConfigReader::getConfigPath() const { return configPath; }
 
 // 设置新的配置文件路径
-void ConfigReader::setConfigPath(const string& newPath) { 
+void ConfigReader::setConfigPath(const std::string& newPath) { 
     configPath = newPath; 
     configLoaded = false; // 路径改变后需要重新加载配置
     parsedParams.clear(); // 清空已解析参数记录
 }
 
 // 更新配置文件中的参数值（兼容旧接口）
-bool ConfigReader::updateConfigParameter(const string& paramName, double value) {
+bool ConfigReader::updateConfigParameter(const std::string& paramName, double value) {
     return writeParameterToFile(paramName, value);
 }
 
@@ -665,12 +668,12 @@ void ConfigReader::printAllParameters() const {
 }
 
 // 检查参数是否存在
-bool ConfigReader::isParameterExists(const string& paramName) const {
+bool ConfigReader::isParameterExists(const std::string& paramName) const {
     return parsedParams.find(paramName) != parsedParams.end();
 }
 
 // 获取缺失的参数列表
-vector<string> ConfigReader::getMissingParameters() const {
+std::vector<std::string> ConfigReader::getMissingParameters() const {
     vector<string> missing;
     for (const auto& param : expectedParams) {
         if (parsedParams.find(param) == parsedParams.end()) {
@@ -680,7 +683,7 @@ vector<string> ConfigReader::getMissingParameters() const {
     return missing;
 }
 
-bool ConfigReader::writeMultipleParametersToFile(const vector<pair<string, double>>& params) {
+bool ConfigReader::writeMultipleParametersToFile(const std::vector<std::pair<std::string, double>>& params) {
     try {
         // 检查参数列表是否为空
         if (params.empty()) {

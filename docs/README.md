@@ -55,7 +55,7 @@ ninja
   - 文件: `include/widget.h`, `CMakeLists.txt`
   - 描述: 移除项目中未实际使用的Logger类，简化项目结构，减少不必要的依赖
 
-- **详细更改记录**: [2025-11-25_CHANGES.md](./2025-11-25_CHANGES.md)
+- **详细更改记录**: [2025-11-25_CHANGES.md](./archive/2025-11-25_CHANGES.md)
 
 ### 2025-11-24 — SSH连接稳定性和程序可靠性重大优化
 
@@ -65,7 +65,7 @@ ninja
 - **系统资源使用降低80%**：优化监控频率和心跳机制
 - **用户体验显著改善**：智能重连和友好错误提示
 
-- **详细优化报告**: [2025-11-24_SSH_OPTIMIZATION.md](./2025-11-24_SSH_OPTIMIZATION.md)
+- **详细优化报告**: [2025-11-24_SSH_OPTIMIZATION.md](./archive/2025-11-24_SSH_OPTIMIZATION.md)
 
 ### 2025-11-24 — 编译错误修复与性能优化
 
@@ -75,7 +75,7 @@ ninja
 - **代码重构**：将.hpp文件分离为标准.h/.cpp文件对
 - **构建优化**：添加C++17标准支持，解决Qt 6兼容性问题
 
-- **详细更改记录**: [2025-11-24_COMPILE_FIXES.md](./2025-11-24_COMPILE_FIXES.md)
+- **详细更改记录**: [2025-11-24_COMPILE_FIXES.md](./archive/2025-11-24_COMPILE_FIXES.md)
 
 ### 2025-11-22 — 修复与增强
 
@@ -87,7 +87,7 @@ ninja
 	- 文件: `widget.cpp`, `widget.h`
 	- 描述: 当 `main_load()` 捕获到 SSH 或其它异常时，会把详细错误信息保存在 `Widget::lastErrorMessage` 并在 UI 的"加载失败"对话框中显示，方便排查（例如认证失败、网络不可达、libssh2 错误等）。
 
-- **详细更改记录**: [2025-11-22_RELIABILITY_FIXES.md](./2025-11-22_RELIABILITY_FIXES.md)
+- **详细更改记录**: [2025-11-22_RELIABILITY_FIXES.md](./archive/2025-11-22_RELIABILITY_FIXES.md)
 
 - 已将上述改动提交至远程仓库（排除了 `build/` 目录）
 	- 提交信息: `修复：改进远端配置读取并显示加载时详细错误信息`

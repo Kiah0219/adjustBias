@@ -14,9 +14,13 @@
 #include <stdexcept>
 #include <thread>
 #include <chrono>
+#include "Exceptions.h"
 
 #pragma comment(lib, "ws2_32.lib")
 #pragma comment(lib, "libssh2.lib")
+
+// ===== Backward Compatibility: SSHException alias =====
+using SSHException = ApplicationException;
 
 using namespace std;
 

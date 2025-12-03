@@ -119,12 +119,20 @@ qt_add_executable(adjustBias
     src/FileHandler.cpp     # File handler implementation
     src/RemoteCommandExecutor.cpp  # Remote command executor implementation
     src/SSHManager.cpp       # SSH manager implementation
+    src/Logger.cpp          # Logger implementation (unified logging)
     include/widget.h        # Interface component header file
     include/widget.ui       # Qt Designer designed interface file
     include/ConfigReader.h    # Configuration reader header file
     include/FileHandler.h     # File handler header file
     include/RemoteCommandExecutor.h  # Remote command executor header file
     include/SSHManager.h       # SSH manager header file
+    include/Logger.h        # Logger header file
+    include/Config.h        # Configuration constants (Optimization #4)
+    include/Parameters.h    # Unified data model (Optimization #5)
+    include/Exceptions.h    # Structured exception hierarchy (Optimization #7)
+    include/ResourceManager.h  # RAII resource management (Optimization #8)
+    include/ParameterValidator.h  # Parameter validation framework (Optimization #9)
+    include/ConnectionPool.h  # Connection pool and caching (Optimization #10)
 )
 
 
