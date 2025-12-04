@@ -81,6 +81,15 @@ foreach(OUTPUTCONFIG ${CMAKE_CONFIGURATION_TYPES})
     set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${OUTPUTCONFIG} ${CMAKE_BINARY_DIR}/lib)
 endforeach()
 
+# === Build Configuration Recommendations ===
+# NOTE: For distribution to other computers, ALWAYS use Release build!
+# Debug builds require Visual C++ Debug Runtimes (vcruntime140d.dll, ucrtbased.dll)
+# Release builds use standard Visual C++ Runtimes that are widely available
+message(STATUS "=== Build Configuration Notice ===")
+message(STATUS "For distribution to other computers, use Release build:")
+message(STATUS "  cmake --build . --config Release")
+message(STATUS "Debug builds require Visual C++ Debug Runtimes and may not work on other systems")
+
 # === Find Dependencies ===
 # Find Qt6 library, require version 6.5 or higher, required components: Core, Widgets, LinguistTools
 find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets LinguistTools)
@@ -331,6 +340,113 @@ function(install_dll_dependencies target)
         if(QT_PLATFORMS_DLL)
             install(FILES ${QT_PLATFORMS_DLL} DESTINATION bin/platforms)
             message(STATUS "Found Qt platform plugins: ${QT_PLATFORMS_DLL}")
+        endif()
+        
+        # === Find and Install Visual C++ Runtime Libraries ===
+        if(MSVC)
+            message(STATUS "Finding Visual C++ runtime libraries...")
+            
+            # Get Visual Studio installation directory
+            if(DEFINED ENV{VCINSTALLDIR})
+                set(VS_DIR "$ENV{VCINSTALLDIR}")
+            else()
+                # Try to find Visual Studio installation
+                set(VS_PATHS 
+                    "C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Redist/MSVC"
+                    "C:/Program Files/Microsoft Visual Studio/2022/Professional/VC/Redist/MSVC"
+                    "C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Redist/MSVC"
+                    "C:/Program Files (x86)/Microsoft Visual Studio/2019/Community/VC/Redist/MSVC"
+                    "C:/Program Files (x86)/Microsoft Visual Studio/2019/Professional/VC/Redist/MSVC"
+                    "C:/Program Files (x86)/Microsoft Visual Studio/2019/Enterprise/VC/Redist/MSVC"
+                )
+                
+                foreach(VS_PATH ${VS_PATHS})
+                    if(EXISTS "${VS_PATH}")
+                        file(GLOB VS_VERSION_DIRS "${VS_PATH}/*")
+                        foreach(VERSION_DIR ${VS_VERSION_DIRS})
+                            if(IS_DIRECTORY "${VERSION_DIR}")
+                                # Look for both Debug and Release runtime DLLs
+                                set(VCRT_SEARCH_PATHS
+                                    "${VERSION_DIR}/x64/Microsoft.VC143.CRT"
+                                    "${VERSION_DIR}/x64/Microsoft.VC142.CRT"
+                                    "${VERSION_DIR}/x64/Debug_NonRedist/Microsoft.VC143.DebugCRT"
+                                    "${VERSION_DIR}/x64/Debug_NonRedist/Microsoft.VC142.DebugCRT"
+                                )
+                                
+                                foreach(VCRT_PATH ${VCRT_SEARCH_PATHS})
+                                    if(EXISTS "${VCRT_PATH}")
+                                        # Find Release runtime DLLs
+                                        find_file(VCRUNTIME_DLL
+                                            NAMES vcruntime140.dll vcruntime140_1.dll
+                                            PATHS "${VCRT_PATH}"
+                                            NO_DEFAULT_PATH
+                                        )
+                                        if(VCRUNTIME_DLL)
+                                            install(FILES ${VCRUNTIME_DLL} DESTINATION bin)
+                                            message(STATUS "✓ Found VC Runtime: ${VCRUNTIME_DLL}")
+                                        endif()
+                                        
+                                        # Find Debug runtime DLLs
+                                        find_file(VCRUNTIME_DEBUG_DLL
+                                            NAMES vcruntime140d.dll vcruntime140_1d.dll
+                                            PATHS "${VCRT_PATH}"
+                                            NO_DEFAULT_PATH
+                                        )
+                                        if(VCRUNTIME_DEBUG_DLL)
+                                            install(FILES ${VCRUNTIME_DEBUG_DLL} DESTINATION bin)
+                                            message(STATUS "✓ Found VC Runtime Debug: ${VCRUNTIME_DEBUG_DLL}")
+                                        endif()
+                                        
+                                        # Find MSVCP runtime DLLs
+                                        find_file(MSVCP_DLL
+                                            NAMES msvcp140.dll msvcp140_1.dll msvcp140_2.dll
+                                            PATHS "${VCRT_PATH}"
+                                            NO_DEFAULT_PATH
+                                        )
+                                        if(MSVCP_DLL)
+                                            install(FILES ${MSVCP_DLL} DESTINATION bin)
+                                            message(STATUS "✓ Found MSVCP Runtime: ${MSVCP_DLL}")
+                                        endif()
+                                        
+                                        # Find MSVCP Debug runtime DLLs
+                                        find_file(MSVCP_DEBUG_DLL
+                                            NAMES msvcp140d.dll
+                                            PATHS "${VCRT_PATH}"
+                                            NO_DEFAULT_PATH
+                                        )
+                                        if(MSVCP_DEBUG_DLL)
+                                            install(FILES ${MSVCP_DEBUG_DLL} DESTINATION bin)
+                                            message(STATUS "✓ Found MSVCP Runtime Debug: ${MSVCP_DEBUG_DLL}")
+                                        endif()
+                                        
+                                        # Find UCRT DLLs
+                                        find_file(UCRT_DLL
+                                            NAMES ucrtbase.dll
+                                            PATHS "${VCRT_PATH}"
+                                            NO_DEFAULT_PATH
+                                        )
+                                        if(UCRT_DLL)
+                                            install(FILES ${UCRT_DLL} DESTINATION bin)
+                                            message(STATUS "✓ Found UCRT: ${UCRT_DLL}")
+                                        endif()
+                                        
+                                        # Find UCRT Debug DLLs
+                                        find_file(UCRT_DEBUG_DLL
+                                            NAMES ucrtbased.dll
+                                            PATHS "${VCRT_PATH}"
+                                            NO_DEFAULT_PATH
+                                        )
+                                        if(UCRT_DEBUG_DLL)
+                                            install(FILES ${UCRT_DEBUG_DLL} DESTINATION bin)
+                                            message(STATUS "✓ Found UCRT Debug: ${UCRT_DEBUG_DLL}")
+                                        endif()
+                                    endif()
+                                endforeach()
+                            endif()
+                        endforeach()
+                    endif()
+                endforeach()
+            endif()
         endif()
     endif()
 endfunction()
