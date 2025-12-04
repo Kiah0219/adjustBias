@@ -67,21 +67,6 @@ if(MSVC)
     add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/FS>")
 endif()
 
-# Set C++ standard to C++17 (required by Qt 6)
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
-
-# MSVC specific settings
-if(MSVC)
-    # Enable C++17 support for MSVC
-    add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/Zc:__cplusplus>")
-    # Enable parallel compilation for MSVC
-    add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/MP>")
-    # Use /FS option to avoid PDB file conflicts
-    add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/FS>")
-endif()
-
 # === Set Output Directories ===
 # Set all output files to be placed in bin directory
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
@@ -334,6 +319,19 @@ function(install_dll_dependencies target)
             install(FILES ${ZLIB_DLL} DESTINATION bin)
             message(STATUS "Found zlib DLL: ${ZLIB_DLL}")
         endif()
+        
+        # --- Search for additional Qt platform plugins (if needed) ---
+        find_file(QT_PLATFORMS_DLL
+            NAMES qwindows.dll qminimal.dll qoffscreen.dll
+            PATHS 
+                "${Qt6_DIR}/../../../plugins/platforms"
+                "$ENV{QTDIR}/plugins/platforms"
+                "$ENV{QT_DIR}/plugins/platforms"
+        )
+        if(QT_PLATFORMS_DLL)
+            install(FILES ${QT_PLATFORMS_DLL} DESTINATION bin/platforms)
+            message(STATUS "Found Qt platform plugins: ${QT_PLATFORMS_DLL}")
+        endif()
     endif()
 endfunction()
 
@@ -343,8 +341,9 @@ install_dll_dependencies(adjustBias)
 
 # === Install Configuration Files ===
 # Install application configuration files (if any)
-install(FILES 
-    config/config.ini  # Configuration file
-    DESTINATION bin  # Install to bin directory
-    OPTIONAL       # Optional file, don't error if doesn't exist
-)
+# Note: config.ini has been removed, keeping this section for future use
+# install(FILES 
+#     config/config.ini  # Configuration file
+#     DESTINATION bin  # Install to bin directory
+#     OPTIONAL       # Optional file, don't error if doesn't exist
+# )
