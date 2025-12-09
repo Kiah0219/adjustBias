@@ -1,5 +1,32 @@
+ 
 #include "ConfigReader.h"
 #include <QDebug>
+#include <unordered_map>
+
+// base64 encoder helper
+static std::string base64_encode(const std::string &in) {
+    static const char *b64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    std::string out;
+    int val = 0, valb = -6;
+    for (unsigned char c : in) {
+        val = (val << 8) + c;
+        valb += 8;
+        while (valb >= 0) {
+            out.push_back(b64_chars[(val >> valb) & 0x3F]);
+            valb -= 6;
+        }
+    }
+    if (valb > -6) out.push_back(b64_chars[((val << 8) >> (valb + 8)) & 0x3F]);
+    while (out.size() % 4) out.push_back('=');
+    return out;
+}
+
+// 确保字符串以单个换行符结尾（如果字符串非空），用于保证文件最后一行保留换行符
+static void ensure_single_trailing_newline(std::string &s) {
+    if (s.empty()) return;
+    while (!s.empty() && s.back() == '\n') s.pop_back();
+    s.push_back('\n');
+}
 
 // ===== Optimization #3: Initialize parameter map for O(1) lookup =====
 void ConfigReader::initializeParameterMap() {
@@ -26,6 +53,85 @@ bool ConfigReader::validateConfigFile(const std::string& filePath) {
     std::string line;
     std::getline(file, line);
     return !line.empty();
+}
+        
+bool ConfigReader::atomicWriteRemoteFile(const std::string& content) {
+    if (!sshManager) {
+        std::cerr << "错误: SSH管理器未初始化，无法写入文件" << std::endl;
+        return false;
+    }
+
+    if (sshManager->isSSHDisconnected()) {
+        std::cerr << "错误: SSH连接已断开，无法写入文件" << std::endl;
+        return false;
+    }
+
+    std::string tmpPath; // 定义在外部以便 catch 块使用
+    try {
+
+        // 在相同目录下生成临时文件路径
+        tmpPath = configPath + ".tmp." + std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
+
+        // 使用 base64 方式写入，避免额外换行和 heredoc 问题
+        std::string toWrite = content;
+        ensure_single_trailing_newline(toWrite); // 保证末尾有且仅有一个换行
+        std::string encoded = base64_encode(toWrite);
+        // 先检测远端是否存在 base64 工具，若无则回退到 heredoc（可能面临 EOF 关键词问题）
+        std::string checkBase64Cmd = "command -v base64 >/dev/null 2>&1 && echo '1' || echo '0'";
+        std::string hasBase64 = executeRemoteCommand(checkBase64Cmd);
+        std::string writeTempCmd;
+        if (hasBase64.find('1') != std::string::npos) {
+            writeTempCmd = "echo '" + encoded + "' | base64 -d > " + tmpPath;
+        } else {
+            // fallback to heredoc; escape single quotes by closing and reopening quoting
+            // But heredoc is susceptible to EOF content - we try to avoid extra ending EOF text by ensuring newline
+            writeTempCmd = "cat > " + tmpPath + " << 'EOF'\n" + toWrite + "\nEOF";
+        }
+        std::string writeResult = executeRemoteCommand(writeTempCmd);
+        Q_UNUSED(writeResult);
+
+        // 验证临时文件是否存在
+        std::string testTmpCmd = "test -f " + tmpPath + " && echo '1' || echo '0'";
+        std::string tmpExists = executeRemoteCommand(testTmpCmd);
+        if (tmpExists.find('1') == std::string::npos) {
+            // 临时文件写入失败
+            cerr << "临时文件未创建: " << tmpPath << std::endl;
+            // 尝试删除临时文件（防止残留）
+            executeRemoteCommand(std::string("rm -f ") + tmpPath);
+            return false;
+        }
+
+        // 将临时文件移动到目标路径（覆盖）
+        std::string mvCmd = "mv -f " + tmpPath + " " + configPath;
+        try {
+            std::string mvResult = executeRemoteCommand(mvCmd);
+            Q_UNUSED(mvResult);
+        } catch (...) {
+            // mv 失败，尝试删除临时文件以免泄露
+            try {
+                executeRemoteCommand(std::string("rm -f ") + tmpPath);
+            } catch (...) {
+                // 如果删除也失败，记录并返回失败
+            }
+            throw; // 重新抛出以由外层处理
+        }
+
+        // 成功移动，临时文件已替换为目标文件（不会残留tmp）
+        return true;
+    } catch (const SSHException& e) {
+        std::cerr << "SSH异常: 写入远端文件失败: " << e.what() << std::endl;
+        // 尝试删除残留临时文件
+        try { if (!tmpPath.empty()) executeRemoteCommand(std::string("rm -f ") + tmpPath); } catch (...) {}
+        return false;
+    } catch (const std::exception& e) {
+        std::cerr << "写入远端文件失败: " << e.what() << std::endl;
+        try { if (!tmpPath.empty()) executeRemoteCommand(std::string("rm -f ") + tmpPath); } catch (...) {}
+        return false;
+    } catch (...) {
+        std::cerr << "未知异常: 写入远端文件失败" << std::endl;
+        try { if (!tmpPath.empty()) executeRemoteCommand(std::string("rm -f ") + tmpPath); } catch (...) {}
+        return false;
+    }
 }
 
 // ===== Optimization #3: Use map-based lookup instead of if-else chain =====
@@ -162,15 +268,18 @@ bool ConfigReader::createDefaultConfig() {
             "yaw_vel_offset_run=0.0\n"
             ;
         
-        // 创建配置文件
-        string createCommand = "cat > " + configPath + " << 'EOF'\n" + defaultConfig + "EOF";
-        string result = executeRemoteCommand(createCommand);
+        // 创建配置文件（原子写入）
+        bool createOk = atomicWriteRemoteFile(defaultConfig);
+        if (!createOk) {
+            cerr << "配置文件创建失败: 写入默认配置失败" << endl;
+            return false;
+        }
         
         // 检查文件是否创建成功
         string checkCommand = "test -f " + configPath + " && echo \"created\" || echo \"failed\"";
-        result = executeRemoteCommand(checkCommand);
-        
-        if (result.find("created") != string::npos) {
+        string createCheckResult = executeRemoteCommand(checkCommand);
+
+        if (createCheckResult.find("created") != string::npos) {
             qDebug() << "默认配置文件创建成功: " << configPath;
             return true;
         } else {
@@ -190,58 +299,126 @@ bool ConfigReader::createDefaultConfig() {
     }
 }
 
-void ConfigReader::parseConfigContent(const std::string& content) {
+bool ConfigReader::parseConfigContent(const std::string& content, std::string &dedupedContent) {
     parsedParams.clear(); // 清空已解析参数集合
+
+    // 保存原始每一行，用以重建去重后的内容
+    std::vector<std::string> originalLines;
     std::istringstream contentStream(content);
     std::string line;
-    
-    while (getline(contentStream, line)) {
+    while (std::getline(contentStream, line)) {
+        originalLines.push_back(line);
+    }
+
+    // 存储参数的最后一次出现行索引和对应的数值
+    std::unordered_map<std::string, size_t> lastOccurrenceIndex;
+    std::unordered_map<std::string, double> lastParsedValues;
+
+    // 解析并记录最后一次出现的值
+    for (size_t i = 0; i < originalLines.size(); ++i) {
+        std::string current = originalLines[i];
         // 去除行首尾空白字符
-        line.erase(0, line.find_first_not_of(" \t"));
-        line.erase(line.find_last_not_of(" \t") + 1);
+        auto start = current.find_first_not_of(" \t");
+        if (start == std::string::npos) continue; // 空白行
+        std::string trimmed = current.substr(start);
+        // 跳过注释行
+        if (trimmed.empty() || trimmed[0] == '#') continue;
         
-        // 跳过空行和注释行
-        if (line.empty() || line[0] == '#') {
+        size_t equalPos = trimmed.find('=');
+        if (equalPos == std::string::npos) continue;
+
+        std::string varName = trimmed.substr(0, equalPos);
+        std::string valueStr = trimmed.substr(equalPos + 1);
+
+        // 去除变量名和值的空白字符
+        varName.erase(0, varName.find_first_not_of(" \t"));
+        varName.erase(varName.find_last_not_of(" \t") + 1);
+        valueStr.erase(0, valueStr.find_first_not_of(" \t"));
+        valueStr.erase(valueStr.find_last_not_of(" \t") + 1);
+
+        try {
+            // 验证数值字符串格式
+            if (valueStr.empty() || valueStr.find_first_not_of("0123456789.-+eE") != std::string::npos) {
+                // 非数值样式，不处理
+                continue;
+            }
+            double value = std::stod(valueStr);
+            if (!std::isfinite(value)) continue;
+
+            // 更新最后一次出现记录
+            lastOccurrenceIndex[varName] = i;
+            lastParsedValues[varName] = value;
+        } catch (...) {
+            // 忽略解析中出现的异常，继续下一行
             continue;
         }
-        
-        // 查找等号分隔符
-        size_t equalPos = line.find('=');
-        if (equalPos != std::string::npos) {
-            std::string varName = line.substr(0, equalPos);
-            std::string valueStr = line.substr(equalPos + 1);
-            
-            // 去除变量名和值的空白字符
-            varName.erase(0, varName.find_first_not_of(" \t"));
-            varName.erase(varName.find_last_not_of(" \t") + 1);
-            valueStr.erase(0, valueStr.find_first_not_of(" \t"));
-            valueStr.erase(valueStr.find_last_not_of(" \t") + 1);
-            
-            try {
-                // 验证数值字符串格式
-                if (valueStr.empty() || valueStr.find_first_not_of("0123456789.-+eE") != std::string::npos) {
-                    std::cerr << "无效的数值格式: " << line << std::endl;
-                    continue;
-                }
-                
-                double value = std::stod(valueStr);
-                // 检查是否为有限数值
-                if (!std::isfinite(value)) {
-                    std::cerr << "数值不是有限数: " << line << std::endl;
-                    continue;
-                }
-                
-                setParameterValue(varName, value);
-                parsedParams.insert(varName); // 记录已解析的参数
-            } catch (const std::invalid_argument& e) {
-                std::cerr << "数值格式错误: " << line << " - " << e.what() << std::endl;
-            } catch (const std::out_of_range& e) {
-                std::cerr << "数值超出范围: " << line << " - " << e.what() << std::endl;
-            } catch (const std::exception& e) {
-                std::cerr << "解析数值失败: " << line << " - " << e.what() << std::endl;
-            }
-        }
     }
+
+    // 将最终值写入内存参数，并标记为已解析
+    for (const auto& kv : lastParsedValues) {
+        setParameterValue(kv.first, kv.second);
+        parsedParams.insert(kv.first);
+    }
+
+    // 构建去重后的文件内容（仅保留每个参数的最后一次出现）
+    std::vector<std::string> dedupedLines;
+    dedupedLines.reserve(originalLines.size());
+    for (size_t i = 0; i < originalLines.size(); ++i) {
+        std::string current = originalLines[i];
+        auto start = current.find_first_not_of(" \t");
+        if (start == std::string::npos) {
+            dedupedLines.push_back(current);
+            continue; // 空行
+        }
+        std::string trimmed = current.substr(start);
+        if (trimmed.empty() || trimmed[0] == '#') {
+            dedupedLines.push_back(current);
+            continue; // 注释行保留
+        }
+
+        size_t equalPos = trimmed.find('=');
+        if (equalPos == std::string::npos) {
+            dedupedLines.push_back(current);
+            continue; // 非键值行保留
+        }
+
+        std::string varName = trimmed.substr(0, equalPos);
+        varName.erase(0, varName.find_first_not_of(" \t"));
+        varName.erase(varName.find_last_not_of(" \t") + 1);
+
+        auto it = lastOccurrenceIndex.find(varName);
+        if (it != lastOccurrenceIndex.end() && it->second != i) {
+            // 不是最后一次出现，跳过（删除）
+            continue;
+        }
+
+        // 留下最后一次或非参数行
+        dedupedLines.push_back(current);
+    }
+
+    // ===== 优化: 去除末尾重复空行，最多保留一行空行 =====
+    auto isBlank = [](const std::string &s) {
+        if (s.empty()) return true;
+        size_t st = s.find_first_not_of(" \t\r\n");
+        return st == std::string::npos;
+    };
+    // 删除末尾的空行，避免文件结尾出现多余空行（保留0个）
+    while (!dedupedLines.empty() && isBlank(dedupedLines.back())) {
+        dedupedLines.pop_back();
+    }
+
+    // 将 dedupedLines 合并为字符串
+    std::ostringstream oss;
+    for (size_t i = 0; i < dedupedLines.size(); ++i) {
+        oss << dedupedLines[i];
+        if (i + 1 < dedupedLines.size()) oss << '\n';
+    }
+    dedupedContent = oss.str();
+    if(!dedupedContent.empty()) {
+        // 保证去重后文件在末尾保留一个换行符
+        dedupedContent.push_back('\n');
+    }
+    return true;
 }
 
 bool ConfigReader::completeMissingParameters() {
@@ -293,11 +470,12 @@ bool ConfigReader::completeMissingParameters() {
             parsedParams.insert(param);    // 标记为已解析
         }
         
-        // 写回文件
-        string writeCommand = "cat > " + configPath + " << 'EOF'\n" + 
-                             newContent.str() + "EOF";
-        
-        string result = executeRemoteCommand(writeCommand);
+        // 原子写回文件（写临时文件并 mv 覆盖）
+        bool writeOk = atomicWriteRemoteFile(newContent.str());
+        if (!writeOk) {
+            cerr << "写回缺失参数到文件失败" << endl;
+            return false;
+        }
         
         qDebug() << "已成功补充 " << missingParams.size() << " 个缺失参数到配置文件。";
         return true;
@@ -383,10 +561,12 @@ bool ConfigReader::writeParameterToFile(const std::string& paramName, double val
         }
         qDebug() << "最终配置文件行数:" << lines.size();
         
-        // 重新写入文件
-        string writeCommand = "cat > " + configPath + " << 'EOF'\n" + finalContent + "EOF";
-        
-        string result = executeRemoteCommand(writeCommand);
+        // 原子写回文件
+        bool writeOk = atomicWriteRemoteFile(finalContent);
+        if (!writeOk) {
+            cerr << "写入参数到文件失败" << endl;
+            return false;
+        }
         
         // 更新内存中的参数值
         setParameterValue(paramName, value);
@@ -436,8 +616,21 @@ bool ConfigReader::loadConfig() {
             qDebug() << "配置文件原始内容:";
             qDebug().noquote() << fileContent;
             
-            // 解析文件内容
-            parseConfigContent(fileContent);
+            // 解析文件内容，并去重重复参数（保留最后一次出现）
+            string dedupedContent;
+            bool parsedOk = parseConfigContent(fileContent, dedupedContent);
+            if (!parsedOk) {
+                cerr << "解析配置文件失败" << endl;
+                // 继续仍然尝试补充缺失参数
+            }
+            // 如果发现重复参数并且去重后的内容不同，则写回去重版本
+            if (!dedupedContent.empty() && dedupedContent != fileContent) {
+                qDebug() << "检测到重复参数，正在写回去重后的配置文件...";
+                bool writeOk = atomicWriteRemoteFile(dedupedContent);
+                if (!writeOk) {
+                    cerr << "写回去重后的配置文件失败" << endl;
+                }
+            }
             
             // 检查并补充缺失参数
             if (completeMissingParameters()) {
@@ -461,8 +654,21 @@ bool ConfigReader::loadConfig() {
                 qDebug() << "新创建的配置文件内容:";
                 qDebug().noquote() << fileContent;
                 
-                // 解析文件内容
-                parseConfigContent(fileContent);
+                // 解析文件内容（虽然默认配置不会重复，但仍使用带去重的解析器）
+                string dedupedContent;
+                bool parsedOk = parseConfigContent(fileContent, dedupedContent);
+                if (!parsedOk) {
+                    cerr << "解析默认配置文件失败" << endl;
+                }
+                
+                // 如果去重后与原始不同，写回以保持一致（通常不会发生）
+                if (!dedupedContent.empty() && dedupedContent != fileContent) {
+                    qDebug() << "默认配置文件去重后发生改变，正在写回...";
+                    bool writeOk = atomicWriteRemoteFile(dedupedContent);
+                    if (!writeOk) {
+                        cerr << "写回默认配置文件失败" << endl;
+                    }
+                }
                 qDebug() << "默认配置文件创建并解析完成!";
                 configLoaded = true;
                 return true;
@@ -808,10 +1014,12 @@ bool ConfigReader::writeMultipleParametersToFile(const std::vector<std::pair<std
         }
         qDebug() << "最终配置文件行数:" << lines.size();
         
-        // 重新写入文件
-        string writeCommand = "cat > " + configPath + " << 'EOF'\n" + finalContent + "EOF";
-        
-        string result = executeRemoteCommand(writeCommand);
+        // 原子写回文件（写临时文件并 mv）
+        bool writeOk = atomicWriteRemoteFile(finalContent);
+        if (!writeOk) {
+            cerr << "批量写入参数失败: 原子写回失败" << endl;
+            return false;
+        }
         
         qDebug() << "批量写入" << validParamCount << "个参数成功完成! (原始" << params.size() << "个参数)";
         return true;

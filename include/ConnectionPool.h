@@ -3,9 +3,11 @@
 #include <memory>
 #include <unordered_map>
 #include <queue>
-#include <mutex>
+#include <shared_mutex>
 #include <chrono>
 #include <functional>
+#include <thread>
+#include <atomic>
 #include "Exceptions.h"
 
 // ===== Optimization #10: Connection Pool and Caching =====
@@ -70,7 +72,7 @@ private:
     
     std::unordered_map<PoolKey, std::queue<PooledConnection<Connection>>> pools;
     std::unordered_map<PoolKey, size_t> poolSizes;
-    std::mutex poolMutex;
+    mutable std::shared_mutex poolMutex;
     
     // Configuration
     size_t maxConnectionsPerKey = 5;
@@ -202,7 +204,7 @@ public:
     
     // Get pool statistics
     size_t getPoolSize(const Key& key) const {
-        std::lock_guard<std::mutex> lock(poolMutex);
+        std::shared_lock<std::shared_mutex> lock(poolMutex);
         
         PoolKey poolKey = serializeKey(key);
         auto it = poolSizes.find(poolKey);
@@ -217,11 +219,62 @@ public:
     
     // Set connection TTL
     void setConnectionTTL(std::chrono::milliseconds ttl) {
-        std::lock_guard<std::mutex> lock(poolMutex);
+        std::lock_guard<std::shared_mutex> lock(poolMutex);
         connectionTTL = ttl;
     }
     
+    // Start background cleanup thread
+    void startCleanupThread(std::chrono::milliseconds interval = std::chrono::minutes(1)) {
+        cleanupRunning = true;
+        cleanupThread = std::thread(&ConnectionPool::cleanupExpiredConnections, this, interval);
+    }
+    
+    // Stop background cleanup thread
+    void stopCleanupThread() {
+        cleanupRunning = false;
+        if (cleanupThread.joinable()) {
+            cleanupThread.join();
+        }
+    }
+    
+    ~ConnectionPool() {
+        stopCleanupThread();
+        clear();
+    }
+    
 private:
+    // Background cleanup thread
+    std::thread cleanupThread;
+    std::atomic<bool> cleanupRunning{false};
+    
+    // Cleanup expired connections
+    void cleanupExpiredConnections(std::chrono::milliseconds interval) {
+        while (cleanupRunning) {
+            std::this_thread::sleep_for(interval);
+            
+            std::unique_lock<std::shared_mutex> lock(poolMutex);
+            for (auto& [poolKey, queue] : pools) {
+                std::queue<PooledConnection<Connection>> validConnections;
+                
+                while (!queue.empty()) {
+                    PooledConnection<Connection> conn = queue.front();
+                    queue.pop();
+                    
+                    if (!conn.isExpired(connectionTTL) && conn.healthy()) {
+                        validConnections.push(std::move(conn));
+                    } else {
+                        if (connectionDestroyer) {
+                            connectionDestroyer(conn.getResource());
+                        }
+                        poolSizes[poolKey]--;
+                    }
+                }
+                
+                pools[poolKey] = std::move(validConnections);
+            }
+        }
+    }
+    
     // Convert key to string representation
     // Specialization for different key types needed
     std::string serializeKey(const Key& key) const {
@@ -336,8 +389,8 @@ public:
                 auto conn = queue.front();
                 queue.pop();
                 
-                if (connectionDestroyer && conn.getResource()) {
-                    connectionDestroyer(conn.getResource());
+                if (connectionDestroyer && conn) {
+                    connectionDestroyer(conn);
                 }
             }
         }

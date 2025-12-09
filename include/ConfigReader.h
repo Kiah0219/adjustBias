@@ -38,6 +38,8 @@ private:
     
     bool validateConfigFile(const std::string& filePath);
     void setParameterValue(const std::string& varName, double value);
+    // 原子写远端配置文件（写入临时文件并mv替换）
+    bool atomicWriteRemoteFile(const std::string& content);
 
 public:
     // 配置参数
@@ -55,11 +57,12 @@ public:
     bool configLoaded = false;
     std::string configPath;
     
-    // 预期参数列表
+    // 预期参数列表 - 与parameterMap保持一致
     std::vector<std::string> expectedParams = {
         "xsense_data_roll", "xsense_data_pitch", 
         "x_vel_offset", "y_vel_offset", "yaw_vel_offset",
-        "x_vel_offset_run", "y_vel_offset_run", "yaw_vel_offset_run"
+        "x_vel_offset_run", "y_vel_offset_run", "yaw_vel_offset_run",
+        "x_vel_limit_walk", "x_vel_limit_run"
     };
     
     // 已解析的参数集合
@@ -73,8 +76,9 @@ public:
     // 创建默认配置文件
     bool createDefaultConfig();
     
-    // 解析配置文件内容
-    void parseConfigContent(const std::string& content);
+    // 解析配置文件内容并去重重复参数，输出去重后内容（若没有修改则返回原始内容）
+    // 返回 true 表示解析成功，dedupedContent 包含去重后的最终内容
+    bool parseConfigContent(const std::string& content, std::string &dedupedContent);
     
     // 检查并补充缺失的参数
     bool completeMissingParameters();
