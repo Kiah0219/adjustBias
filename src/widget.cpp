@@ -8,6 +8,12 @@
 #include <QDir>
 #include <QTextStream>
 #include <QFile>
+#include <QDialog>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QTextEdit>
+#include <QPushButton>
 #include <iostream>
 #include <cmath>
 #include <limits>
@@ -106,7 +112,63 @@ void Widget::on_saveButton_clicked() {
 
         if (result == 0) {
             QTimer::singleShot(500, [this]() {
-                QMessageBox::information(this, "信息", "保存成功！\n请拍下急停按钮重新启动以使配置生效。");
+                try {
+                    // 读取保存后的配置文件内容
+                    QString fileContent;
+                    if (configReader && sshManager && !sshManager->isSSHDisconnected()) {
+                        std::string readCommand = "cat /home/ubuntu/data/param/rl_control_new.txt";
+                        std::string content = configReader->executeRemoteCommand(readCommand);
+                        fileContent = QString::fromStdString(content);
+                        
+                        if (!fileContent.isEmpty()) {
+                            // 创建自定义对话框显示文件内容
+                            QDialog fileDialog(this);
+                            fileDialog.setWindowTitle("配置文件内容");
+                            fileDialog.setModal(true);
+                            fileDialog.resize(600, 400);
+                            
+                            QVBoxLayout* layout = new QVBoxLayout(&fileDialog);
+                            
+                            // 添加标题标签
+                            QLabel* titleLabel = new QLabel("/home/ubuntu/data/param/rl_control_new.txt 完整内容:", &fileDialog);
+                            titleLabel->setStyleSheet("font-weight: bold; color: #2E86AB;");
+                            layout->addWidget(titleLabel);
+                            
+                            // 添加文本编辑框显示文件内容
+                            QTextEdit* textEdit = new QTextEdit(&fileDialog);
+                            textEdit->setPlainText(fileContent);
+                            textEdit->setReadOnly(true);
+                            textEdit->setStyleSheet("font-family: 'Consolas', 'Courier New', monospace; font-size: 12px; background-color: #f8f9fa;");
+                            layout->addWidget(textEdit);
+                            
+                            // 添加按钮布局
+                            QHBoxLayout* buttonLayout = new QHBoxLayout();
+                            
+                            QPushButton* okButton = new QPushButton("确定", &fileDialog);
+                            okButton->setStyleSheet("background-color: #2E86AB; color: white; padding: 8px 16px; border: none; border-radius: 4px;");
+                            okButton->setFixedWidth(80);
+                            
+                            buttonLayout->addStretch();
+                            buttonLayout->addWidget(okButton);
+                            layout->addLayout(buttonLayout);
+                            
+                            // 连接按钮信号
+                            connect(okButton, &QPushButton::clicked, &fileDialog, &QDialog::accept);
+                            
+                            // 显示对话框
+                            fileDialog.exec();
+                            
+                            // 显示保存成功提示
+                            QMessageBox::information(this, "信息", "保存成功！\n请拍下急停按钮重新启动以使配置生效。");
+                        } else {
+                            QMessageBox::information(this, "信息", "保存成功！\n请拍下急停按钮重新启动以使配置生效。\n\n注意：无法读取配置文件内容显示。");
+                        }
+                    } else {
+                        QMessageBox::information(this, "信息", "保存成功！\n请拍下急停按钮重新启动以使配置生效。\n\n注意：连接状态异常，无法读取配置文件内容。");
+                    }
+                } catch (const std::exception& e) {
+                    QMessageBox::information(this, "信息", "保存成功！\n请拍下急停按钮重新启动以使配置生效。\n\n注意：读取配置文件时发生异常：" + QString(e.what()));
+                }
             });
         } else if (result == 1) {
             QTimer::singleShot(500, [this]() {
