@@ -132,14 +132,12 @@ qt_add_executable(adjustBias
 
 
 
-# === Copy Resource Files ===
-# Copy logo.ico to build directory's bin/pics folder
-add_custom_command(TARGET adjustBias POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/pics
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        ${CMAKE_CURRENT_SOURCE_DIR}/resources/logo.ico
-        ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/pics/logo.ico
-    COMMENT "Copy logo.ico to bin/pics folder"
+# === Qt Resource Files ===
+# Add Qt resources to the application
+qt_add_resources(adjustBias "resources"
+    PREFIX "/"
+    FILES
+        resources/resources.qrc
 )
 
 # === Set Header Include Paths ===
@@ -153,10 +151,9 @@ target_include_directories(adjustBias PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/includ
 # Install logo.ico to program installation directory's pics folder (optional)
 install(FILES 
     resources/logo.ico
-    DESTINATION bin/pics
-    OPTIONAL
+    DESTINATION bin/pics 
+    # OPTIONAL
 )
-
 
 
 # === Set Executable Icon ===
@@ -235,6 +232,11 @@ function(install_dll_dependencies target)
         if(LIBSSH2_DLL)
             install(FILES ${LIBSSH2_DLL} DESTINATION bin)  # Install to bin directory
             message(STATUS "Found libssh2 DLL: ${LIBSSH2_DLL}")
+            # 在构建后立即复制到 bin 目录
+            add_custom_command(TARGET ${target} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different "${LIBSSH2_DLL}" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/"
+                COMMENT "Copying libssh2.dll to bin directory"
+            )
         else()
             message(WARNING "libssh2.dll not found")
         endif()
@@ -248,8 +250,13 @@ function(install_dll_dependencies target)
         if(LIBSSL_DLL)
             install(FILES ${LIBSSL_DLL} DESTINATION bin)
             message(STATUS "Found libssl DLL: ${LIBSSL_DLL}")
+            # 在构建后立即复制到 bin 目录
+            add_custom_command(TARGET ${target} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different "${LIBSSL_DLL}" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/"
+                COMMENT "Copying libssl.dll to bin directory"
+            )
         endif()
-        
+
         find_file(LIBCRYPTO_DLL
             NAMES libcrypto-3-x64.dll libcrypto-1_1-x64.dll
             PATHS "C:/vcpkg/installed/x64-windows/bin"
@@ -258,6 +265,11 @@ function(install_dll_dependencies target)
         if(LIBCRYPTO_DLL)
             install(FILES ${LIBCRYPTO_DLL} DESTINATION bin)
             message(STATUS "Found libcrypto DLL: ${LIBCRYPTO_DLL}")
+            # 在构建后立即复制到 bin 目录
+            add_custom_command(TARGET ${target} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different "${LIBCRYPTO_DLL}" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/"
+                COMMENT "Copying libcrypto.dll to bin directory"
+            )
         endif()
         
         # === Find and Install MinGW Runtime Libraries ===
@@ -303,6 +315,11 @@ function(install_dll_dependencies target)
                 # Found library file, install to bin directory
                 install(FILES ${LIB_FILE} DESTINATION bin)
                 message(STATUS "✓ Found and installed: ${LIB_FILE}")
+                # 在构建后立即复制到 bin 目录
+                add_custom_command(TARGET ${target} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${LIB_FILE}" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/"
+                    COMMENT "Copying ${LIB_NAME} to bin directory"
+                )
             else()
                 # If not found in predefined paths, try searching system paths
                 find_file(LIB_FILE_SYSTEM
@@ -311,6 +328,11 @@ function(install_dll_dependencies target)
                 if(LIB_FILE_SYSTEM)
                     install(FILES ${LIB_FILE_SYSTEM} DESTINATION bin)
                     message(STATUS "✓ Found and installed (system path): ${LIB_FILE_SYSTEM}")
+                    # 在构建后立即复制到 bin 目录
+                    add_custom_command(TARGET ${target} POST_BUILD
+                        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${LIB_FILE_SYSTEM}" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/"
+                        COMMENT "Copying ${LIB_NAME} to bin directory"
+                    )
                 else()
                     message(WARNING "✗ MinGW library not found: ${LIB_NAME}")
                 endif()
@@ -327,6 +349,11 @@ function(install_dll_dependencies target)
         if(ZLIB_DLL)
             install(FILES ${ZLIB_DLL} DESTINATION bin)
             message(STATUS "Found zlib DLL: ${ZLIB_DLL}")
+            # 在构建后立即复制到 bin 目录
+            add_custom_command(TARGET ${target} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ZLIB_DLL}" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/"
+                COMMENT "Copying zlib.dll to bin directory"
+            )
         endif()
         
         # --- Search for additional Qt platform plugins (if needed) ---
@@ -340,14 +367,20 @@ function(install_dll_dependencies target)
         if(QT_PLATFORMS_DLL)
             install(FILES ${QT_PLATFORMS_DLL} DESTINATION bin/platforms)
             message(STATUS "Found Qt platform plugins: ${QT_PLATFORMS_DLL}")
+            # 在构建后立即复制到 bin/platforms 目录
+            add_custom_command(TARGET ${target} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/platforms"
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different "${QT_PLATFORMS_DLL}" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/platforms/"
+                COMMENT "Copying Qt platform plugins to bin/platforms directory"
+            )
         endif()
         
         # === Find and Install Visual C++ Runtime Libraries ===
-        if(MSVC)
-            message(STATUS "Finding Visual C++ runtime libraries...")
-            
-            # Get Visual Studio installation directory
-            if(DEFINED ENV{VCINSTALLDIR})
+        # 移除 MSVC 限制，在所有编译器下都查找并复制 VC++ 运行时库
+        message(STATUS "Finding Visual C++ runtime libraries...")
+        
+        # Get Visual Studio installation directory
+        if(DEFINED ENV{VCINSTALLDIR})
                 set(VS_DIR "$ENV{VCINSTALLDIR}")
             else()
                 # Try to find Visual Studio installation
@@ -384,6 +417,11 @@ function(install_dll_dependencies target)
                                         if(VCRUNTIME_DLL)
                                             install(FILES ${VCRUNTIME_DLL} DESTINATION bin)
                                             message(STATUS "✓ Found VC Runtime: ${VCRUNTIME_DLL}")
+                                            # 在构建后立即复制到 bin 目录
+                                            add_custom_command(TARGET ${target} POST_BUILD
+                                                COMMAND ${CMAKE_COMMAND} -E copy_if_different "${VCRUNTIME_DLL}" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/"
+                                                COMMENT "Copying VC Runtime DLL to bin directory"
+                                            )
                                         endif()
                                         
                                         # Find Debug runtime DLLs
@@ -395,6 +433,11 @@ function(install_dll_dependencies target)
                                         if(VCRUNTIME_DEBUG_DLL)
                                             install(FILES ${VCRUNTIME_DEBUG_DLL} DESTINATION bin)
                                             message(STATUS "✓ Found VC Runtime Debug: ${VCRUNTIME_DEBUG_DLL}")
+                                            # 在构建后立即复制到 bin 目录
+                                            add_custom_command(TARGET ${target} POST_BUILD
+                                                COMMAND ${CMAKE_COMMAND} -E copy_if_different "${VCRUNTIME_DEBUG_DLL}" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/"
+                                                COMMENT "Copying VC Runtime Debug DLL to bin directory"
+                                            )
                                         endif()
                                         
                                         # Find MSVCP runtime DLLs
@@ -406,6 +449,11 @@ function(install_dll_dependencies target)
                                         if(MSVCP_DLL)
                                             install(FILES ${MSVCP_DLL} DESTINATION bin)
                                             message(STATUS "✓ Found MSVCP Runtime: ${MSVCP_DLL}")
+                                            # 在构建后立即复制到 bin 目录
+                                            add_custom_command(TARGET ${target} POST_BUILD
+                                                COMMAND ${CMAKE_COMMAND} -E copy_if_different "${MSVCP_DLL}" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/"
+                                                COMMENT "Copying MSVCP Runtime DLL to bin directory"
+                                            )
                                         endif()
                                         
                                         # Find MSVCP Debug runtime DLLs
@@ -417,6 +465,11 @@ function(install_dll_dependencies target)
                                         if(MSVCP_DEBUG_DLL)
                                             install(FILES ${MSVCP_DEBUG_DLL} DESTINATION bin)
                                             message(STATUS "✓ Found MSVCP Runtime Debug: ${MSVCP_DEBUG_DLL}")
+                                            # 在构建后立即复制到 bin 目录
+                                            add_custom_command(TARGET ${target} POST_BUILD
+                                                COMMAND ${CMAKE_COMMAND} -E copy_if_different "${MSVCP_DEBUG_DLL}" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/"
+                                                COMMENT "Copying MSVCP Runtime Debug DLL to bin directory"
+                                            )
                                         endif()
                                         
                                         # Find UCRT DLLs
@@ -428,6 +481,11 @@ function(install_dll_dependencies target)
                                         if(UCRT_DLL)
                                             install(FILES ${UCRT_DLL} DESTINATION bin)
                                             message(STATUS "✓ Found UCRT: ${UCRT_DLL}")
+                                            # 在构建后立即复制到 bin 目录
+                                            add_custom_command(TARGET ${target} POST_BUILD
+                                                COMMAND ${CMAKE_COMMAND} -E copy_if_different "${UCRT_DLL}" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/"
+                                                COMMENT "Copying UCRT DLL to bin directory"
+                                            )
                                         endif()
                                         
                                         # Find UCRT Debug DLLs
@@ -439,6 +497,11 @@ function(install_dll_dependencies target)
                                         if(UCRT_DEBUG_DLL)
                                             install(FILES ${UCRT_DEBUG_DLL} DESTINATION bin)
                                             message(STATUS "✓ Found UCRT Debug: ${UCRT_DEBUG_DLL}")
+                                            # 在构建后立即复制到 bin 目录
+                                            add_custom_command(TARGET ${target} POST_BUILD
+                                                COMMAND ${CMAKE_COMMAND} -E copy_if_different "${UCRT_DEBUG_DLL}" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/"
+                                                COMMENT "Copying UCRT Debug DLL to bin directory"
+                                            )
                                         endif()
                                     endif()
                                 endforeach()
@@ -448,7 +511,6 @@ function(install_dll_dependencies target)
                 endforeach()
             endif()
         endif()
-    endif()
 endfunction()
 
 # === Call DLL Dependency Installation Function ===

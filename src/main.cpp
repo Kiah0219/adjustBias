@@ -10,8 +10,9 @@ int main(int argc, char *argv[])
 
     SetConsoleOutputCP(CP_UTF8);
     QApplication a(argc, argv);
-    QString iconPath = QFile::exists("pics/logo.ico") ? "pics/logo.ico" : "bin/pics/logo.ico";
-    a.setWindowIcon(QIcon(iconPath));
+    
+    // 使用Qt资源系统设置应用图标
+    a.setWindowIcon(QIcon(":/logo.ico"));
 
     QTranslator translator;
     const QStringList uiLanguages = QLocale::system().uiLanguages();
@@ -23,7 +24,7 @@ int main(int argc, char *argv[])
         }
     }
     Widget w;
-    w.setWindowTitle("强化模式偏置调整V0.5.0");
+    w.setWindowTitle("强化模式偏置调整V0.5.1");
     w.show();
     return a.exec();
 }

@@ -14,6 +14,7 @@
 #include <QLabel>
 #include <QTextEdit>
 #include <QPushButton>
+#include <QStandardPaths>
 #include <iostream>
 #include <cmath>
 #include <limits>
@@ -155,11 +156,67 @@ void Widget::on_saveButton_clicked() {
                             // 连接按钮信号
                             connect(okButton, &QPushButton::clicked, &fileDialog, &QDialog::accept);
                             
+                            // 保存配置文件到本地桌面"偏置调节记录"文件夹
+                            try {
+                                // 获取桌面路径
+                                QString desktopPath = QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
+                                QString recordFolder = desktopPath + "/偏置调节记录";
+                                
+                                // 确保文件夹存在
+                                if (!QDir().mkpath(recordFolder)) {
+                                    qDebug() << "无法创建偏置调节记录文件夹";
+                                    logException("FileSaveError", "无法创建偏置调节记录文件夹", "on_saveButton_clicked");
+                                } else {
+                                    // 构造文件名：时间戳-IP.txt
+                                    QDateTime now = QDateTime::currentDateTime();
+                                    QString timestamp = now.toString("yyyyMMdd_HHmmss");
+                                    QString ipAddr = QString::fromStdString(host);
+                                    QString fileName = QString("%1-%2.txt").arg(timestamp, ipAddr);
+                                    QString filePath = recordFolder + "/" + fileName;
+                                    
+                                    // 写入文件
+                                    QFile recordFile(filePath);
+                                    if (recordFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                                        QTextStream out(&recordFile);
+                                        #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+                                            out.setEncoding(QStringConverter::Utf8);
+                                        #else
+                                            out.setCodec("UTF-8");
+                                        #endif
+                                        
+                                        // 写入头信息
+                                        out << "========================================" << "\n";
+                                        out << "偏置调节记录" << "\n";
+                                        out << "========================================" << "\n";
+                                        out << "保存时间: " << now.toString("yyyy-MM-dd hh:mm:ss") << "\n";
+                                        out << "IP地址: " << ipAddr << "\n";
+                                        out << "远程文件路径: /home/ubuntu/data/param/rl_control_new.txt" << "\n";
+                                        out << "========================================" << "\n\n";
+                                        
+                                        // 写入配置内容
+                                        out << fileContent;
+                                        
+                                        recordFile.close();
+                                        qDebug() << "配置文件已保存到: " << filePath;
+                                    } else {
+                                        qDebug() << "无法打开文件进行写入: " << filePath;
+                                        logException("FileSaveError", 
+                                                   QString("无法打开文件: %1").arg(filePath),
+                                                   "on_saveButton_clicked");
+                                    }
+                                }
+                            } catch (const std::exception& e) {
+                                qDebug() << "保存配置文件到本地时发生异常:" << e.what();
+                                logException("std::exception",
+                                           QString("保存配置文件到本地时发生异常: %1").arg(e.what()),
+                                           "on_saveButton_clicked");
+                            }
+                            
                             // 显示对话框
                             fileDialog.exec();
                             
                             // 显示保存成功提示
-                            QMessageBox::information(this, "信息", "保存成功！\n请拍下急停按钮重新启动以使配置生效。");
+                            QMessageBox::information(this, "信息", "保存成功！\n请拍下急停按钮重新启动以使配置生效。\n\n已将配置内容保存在本地桌面「偏置调节记录」文件夹。");
                         } else {
                             QMessageBox::information(this, "信息", "保存成功！\n请拍下急停按钮重新启动以使配置生效。\n\n注意：无法读取配置文件内容显示。");
                         }
